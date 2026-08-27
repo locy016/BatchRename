@@ -277,7 +277,7 @@ class BatchRenameApp:
         self.preview_limit_var = tk.IntVar(value=10)
         self.rule_feedback_var = tk.StringVar(value="请输入查找内容；普通模式按原样匹配文本。")
         self.stats_var = tk.StringVar(value="尚未扫描")
-        self.status_var = tk.StringVar(value="请设置目录和规则，然后点击“扫描预览”。")
+        self.status_var = tk.StringVar(value="请设置目录和规则，然后点击“扫描匹配”。")
         self.progress_text_var = tk.StringVar(value="等待操作")
 
         self._messages: queue.Queue[tuple] = queue.Queue()
@@ -565,7 +565,7 @@ class BatchRenameApp:
         ).grid(row=1, column=1, sticky="w", pady=(2, 0))
         help_button = ttk.Button(header, text="使用说明", style="Header.TButton", command=self._show_help)
         help_button.grid(row=0, column=2, rowspan=2, padx=(12, 0))
-        ToolTip(help_button, "打开完整说明，包括层级定义、正则示例、冲突策略和安全注意事项。")
+        ToolTip(help_button, "打开完整说明，包括层级定义、正则模板、冲突策略和安全注意事项。")
 
         settings = ttk.Frame(outer, style="App.TFrame")
         settings.grid(row=1, column=0, sticky="ew", pady=(0, 5))
@@ -643,8 +643,13 @@ class BatchRenameApp:
         frame.columnconfigure(1, weight=1)
         frame.columnconfigure(3, weight=1)
         ttk.Label(frame, text="重命名规则", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
-        examples_button = ttk.Button(frame, text="正则示例", style="Secondary.TButton", command=self._show_regex_examples)
-        examples_button.grid(row=0, column=3, sticky="e", pady=(0, 5))
+        self.regex_templates_button = ttk.Button(
+            frame,
+            text="正则模板",
+            style="Secondary.TButton",
+            command=self._show_regex_examples,
+        )
+        self.regex_templates_button.grid(row=0, column=3, sticky="e", pady=(0, 5))
         ttk.Label(frame, text="查找", style="Card.TLabel").grid(row=1, column=0, padx=(0, 8), pady=4, sticky="w")
         self.search_entry = ttk.Entry(
             frame, textvariable=self.search_var, width=14, style="Modern.TEntry"
@@ -677,13 +682,24 @@ class BatchRenameApp:
         )
         extension.pack(side="left")
         self._input_widgets.extend(
-            [self.search_entry, self.replacement_entry, regex, dirs, files, extension, examples_button]
+            [
+                self.search_entry,
+                self.replacement_entry,
+                regex,
+                dirs,
+                files,
+                extension,
+                self.regex_templates_button,
+            ]
         )
         ToolTip(regex, "关闭时按普通文本查找；开启后使用 Python 正则语法，例如 (\\d{4})-(\\d{2})。")
         ToolTip(dirs, "勾选后，名称匹配的子文件夹会进入预览。")
         ToolTip(files, "勾选后，名称匹配的文件会进入预览。")
         ToolTip(extension, "默认保护最后一个扩展名。例如查找 jpg 不会改变照片.jpg；开启后才会处理整个文件名。")
-        ToolTip(examples_button, "查看可直接套用的日期、序号、标签删除和片段交换示例。")
+        ToolTip(
+            self.regex_templates_button,
+            "按用途选择经过验证的常用正则规则，查看处理前后效果并一键填入主窗口。",
+        )
 
         self.rule_feedback_label = ttk.Label(
             frame,
@@ -832,7 +848,7 @@ class BatchRenameApp:
         if self._last_scan is not None and not self._busy:
             self._last_scan = None
             self.execute_button.configure(state="disabled")
-            self.status_var.set("设置已改变，请重新点击“扫描预览”生成有效预览。")
+            self.status_var.set("设置已改变，请重新点击“扫描匹配”生成有效预览。")
         search_text = self.search_var.get()
         if not search_text:
             self.rule_feedback_var.set("请输入查找内容；该字段不能为空。")
@@ -1143,7 +1159,7 @@ class BatchRenameApp:
         self.replacement_var.set(example.replacement)
         self.regex_var.set(True)
         self.rename_extension_var.set(example.rename_extension)
-        self.status_var.set(f"已应用正则示例：{example.title}。请按实际名称调整后扫描预览。")
+        self.status_var.set(f"已应用正则模板：{example.title}。请按实际名称调整后扫描匹配。")
         if window is not None:
             window.destroy()
 
@@ -1345,8 +1361,8 @@ class BatchRenameApp:
 1. 选择根目录。根目录本身不会改名，只处理其内部项目。
 2. 保持“全部层级”，或限制为 1–N 层。第 1 层是根目录中的直接子项。
 3. 输入查找内容和替换内容，选择处理文件夹、文件或两者。
-4. 点击“扫描预览”。扫描只读取名称，不会修改磁盘。
-5. 在统一结果表中检查类型、原名称、新名称、状态和说明；文件夹排在文件之前，同类项目按名称排列。
+4. 点击“扫描匹配”。扫描只读取名称，不会修改磁盘。
+5. 在统一结果表中检查类型、原名称、新名称、状态和说明；文件夹排在文件之前，同类项目按名称排列。长内容被缩短时，把鼠标停在单元格上可查看完整文字。
 6. 点击“确认并重命名”，核对汇总并二次确认。执行期间会显示逐项进度。
 
 普通文本模式
@@ -1355,7 +1371,7 @@ class BatchRenameApp:
 
 正则表达式模式
 
-使用 Python 正则语法。示例：查找 (\\d{4})-(\\d{2})-(\\d{2})，替换为 \\1\\2\\3，可把 2026-08-27 改为 20260827。输入的表达式或捕获组引用无效时，规则说明区会立即提示。
+不熟悉语法时，点击主窗口的“正则模板”，按日期、编号、标签、文本清理、片段或扩展名选择常见场景。模板会先显示处理前后效果；点击“一键应用此规则”只会填写主窗口，不会立即修改文件。输入的表达式或捕获组引用无效时，规则说明区会立即提示。
 
 文件扩展名
 
@@ -1373,7 +1389,12 @@ class BatchRenameApp:
         frame = ttk.Frame(window, padding=12)
         frame.pack(fill="both", expand=True)
         text = tk.Text(frame, wrap="word", padx=10, pady=10, font=("Microsoft YaHei UI", 10), spacing2=3)
-        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
+        scrollbar = ttk.Scrollbar(
+            frame,
+            orient="vertical",
+            command=text.yview,
+            style="Modern.Vertical.TScrollbar",
+        )
         text.configure(yscrollcommand=scrollbar.set)
         text.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")

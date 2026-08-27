@@ -145,6 +145,7 @@ def test_main_window_uses_one_result_table_with_type_column(tk_window):
     assert app.result_tree["columns"][0] == "kind"
     assert hasattr(app, "scope_card")
     assert hasattr(app, "rule_card")
+    assert app.regex_templates_button.cget("text") == "正则模板"
 
 
 def test_default_layout_fits_960_by_680_and_expands_the_result_area(tk_window):
