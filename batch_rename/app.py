@@ -1125,6 +1125,7 @@ class BatchRenameApp:
         self.search_var.set(example.search)
         self.replacement_var.set(example.replacement)
         self.regex_var.set(True)
+        self.rename_extension_var.set(example.rename_extension)
         self.status_var.set(f"已应用正则示例：{example.title}。请按实际名称调整后扫描预览。")
         if window is not None:
             window.destroy()
