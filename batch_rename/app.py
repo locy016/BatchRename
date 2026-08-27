@@ -385,7 +385,7 @@ class BatchRenameApp:
         self.stats_var = tk.StringVar(
             value="匹配：0 项 | 可修改：0 项 | 名称未变化：0 项 | 阻止执行：0 项"
         )
-        self.status_var = tk.StringVar(value="请设置目录和规则，然后点击“扫描匹配”。")
+        self.status_var = tk.StringVar(value="请设置目录和规则，然后点击“结果预览”。")
         self.progress_text_var = tk.StringVar(value="等待操作")
 
         self._messages: queue.Queue[tuple] = queue.Queue()
@@ -1039,7 +1039,7 @@ class BatchRenameApp:
         if self._last_scan is not None and not self._busy:
             self._last_scan = None
             self.execute_button.configure(state="disabled")
-            self.status_var.set("设置已改变，请重新点击“扫描匹配”生成有效预览。")
+            self.status_var.set("设置已改变，请重新点击“结果预览”生成有效预览。")
         search_text = self.search_var.get()
         if not search_text:
             self.rule_feedback_var.set("请输入查找内容；该字段不能为空。")
@@ -1353,7 +1353,7 @@ class BatchRenameApp:
         self.replacement_var.set(example.replacement)
         self.regex_var.set(True)
         self.rename_extension_var.set(example.rename_extension)
-        self.status_var.set(f"已应用正则模板：{example.title}。请按实际名称调整后扫描匹配。")
+        self.status_var.set(f"已应用正则模板：{example.title}。请按实际名称调整后生成结果预览。")
         if window is not None:
             window.destroy()
 
@@ -1555,8 +1555,8 @@ class BatchRenameApp:
 1. 选择根目录。根目录本身不会改名，只处理其内部项目。
 2. 保持“全部层级”，或限制为 1–N 层。第 1 层是根目录中的直接子项。
 3. 输入查找内容和替换内容，选择处理文件夹、文件或两者。
-4. 点击“扫描匹配”。扫描只读取名称，不会修改磁盘。
-5. 在统一结果表中检查类型、原名称、新名称、状态和说明；文件夹排在文件之前，同类项目按名称排列。长内容被缩短时，把鼠标停在单元格上可查看完整文字。
+4. 在查找框按 Enter、点击框后的“扫描”，或点击“结果预览”。三种方式都会使用当前全部规则，只读取名称，不会修改磁盘。
+5. 在统一结果表中按“类型、所在目录、原名称、新名称、状态、说明”检查结果；文件夹排在文件之前，同类项目按名称排列。新名称使用青绿色便于对照，长内容被缩短时，把鼠标停在对应位置可查看完整文字。
 6. 点击“确认并重命名”，核对汇总并二次确认。执行期间会显示逐项进度。
 
 普通文本模式
