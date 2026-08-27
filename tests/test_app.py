@@ -163,10 +163,34 @@ def test_main_window_uses_one_result_table_with_type_column(tk_window):
 
     assert hasattr(app, "result_tree")
     assert not hasattr(app, "preview_notebook")
-    assert app.result_tree["columns"][0] == "kind"
+    assert app.result_tree["columns"] == (
+        "kind",
+        "parent",
+        "old",
+        "new",
+        "status",
+        "detail",
+    )
     assert hasattr(app, "scope_card")
     assert hasattr(app, "rule_card")
     assert app.regex_templates_button.cget("text") == "正则模板"
+
+
+def test_result_table_values_follow_the_visible_column_order(tk_window):
+    app = BatchRenameApp(tk_window)
+    item = candidate("文件2.txt", ItemKind.FILE)
+
+    app._fill_tree(app.result_tree, [item])
+
+    row = app.result_tree.get_children()[0]
+    assert app.result_tree.item(row, "values") == (
+        "文件",
+        str(item.source.parent),
+        "文件2.txt",
+        "新-文件2.txt",
+        "可修改",
+        "",
+    )
 
 
 def test_default_layout_fits_960_by_680_and_expands_the_result_area(tk_window):

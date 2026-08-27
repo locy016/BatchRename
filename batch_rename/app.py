@@ -775,7 +775,7 @@ class BatchRenameApp:
     def _create_tree(self, parent: ttk.Frame) -> ttk.Treeview:
         parent.rowconfigure(1, weight=1)
         parent.columnconfigure(0, weight=1)
-        columns = ("kind", "old", "new", "parent", "status", "detail")
+        columns = ("kind", "parent", "old", "new", "status", "detail")
         tree = ttk.Treeview(
             parent,
             columns=columns,
@@ -791,7 +791,14 @@ class BatchRenameApp:
             "status": "状态",
             "detail": "说明",
         }
-        widths = {"kind": 58, "old": 125, "new": 125, "parent": 210, "status": 88, "detail": 170}
+        widths = {
+            "kind": 56,
+            "parent": 190,
+            "old": 125,
+            "new": 135,
+            "status": 82,
+            "detail": 165,
+        }
         for column in columns:
             tree.heading(column, text=headings[column])
             tree.column(
@@ -1020,9 +1027,9 @@ class BatchRenameApp:
                 "end",
                 values=(
                     item.kind.value,
+                    str(item.source.parent),
                     item.old_name,
                     item.new_name,
-                    str(item.source.parent),
                     item.status.value,
                     item.detail,
                 ),
