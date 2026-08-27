@@ -135,8 +135,8 @@ class BatchRenameApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("批量重命名工具")
-        self.root.geometry("1240x820")
-        self.root.minsize(1000, 700)
+        self.root.geometry("960x680")
+        self.root.minsize(960, 680)
         self.root.configure(background=self.COLORS["background"])
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -183,7 +183,7 @@ class BatchRenameApp:
             "HeaderTitle.TLabel",
             background=colors["navy"],
             foreground="#FFFFFF",
-            font=("Microsoft YaHei UI", 18, "bold"),
+            font=("Microsoft YaHei UI", 16, "bold"),
         )
         style.configure(
             "HeaderSubtitle.TLabel",
@@ -242,7 +242,7 @@ class BatchRenameApp:
             background=colors["accent"],
             foreground="#FFFFFF",
             borderwidth=0,
-            padding=(18, 9),
+            padding=(16, 7),
             font=("Microsoft YaHei UI", 10, "bold"),
         )
         style.map(
@@ -255,7 +255,7 @@ class BatchRenameApp:
             background="#E8EEF4",
             foreground=colors["navy"],
             borderwidth=0,
-            padding=(13, 8),
+            padding=(12, 6),
             font=("Microsoft YaHei UI", 9),
         )
         style.map("Secondary.TButton", background=[("active", "#D9E4ED")])
@@ -273,7 +273,7 @@ class BatchRenameApp:
             fieldbackground="#FFFFFF",
             foreground=colors["text"],
             bordercolor=colors["border"],
-            rowheight=30,
+            rowheight=23,
             font=("Microsoft YaHei UI", 9),
         )
         style.configure(
@@ -282,7 +282,7 @@ class BatchRenameApp:
             foreground=colors["navy"],
             relief="flat",
             font=("Microsoft YaHei UI", 9, "bold"),
-            padding=(8, 7),
+            padding=(7, 4),
         )
         style.map("Treeview.Heading", background=[("active", "#DDE7EF")])
         style.configure("Modern.Horizontal.TProgressbar", troughcolor="#DDE7ED", background=colors["accent"])
@@ -292,7 +292,7 @@ class BatchRenameApp:
         icon_path = base / "assets" / "app-icon.png"
         try:
             self._app_icon = tk.PhotoImage(file=icon_path)
-            factor = max(1, round(self._app_icon.width() / 58))
+            factor = max(1, round(self._app_icon.width() / 46))
             self._header_icon = self._app_icon.subsample(factor, factor)
             self.root.iconphoto(True, self._app_icon)
         except (OSError, tk.TclError):
@@ -300,20 +300,21 @@ class BatchRenameApp:
             self._header_icon = None
 
     def _build_ui(self) -> None:
-        outer = ttk.Frame(self.root, style="App.TFrame", padding=(16, 14, 16, 10))
+        outer = ttk.Frame(self.root, style="App.TFrame", padding=(8, 6, 8, 5))
         outer.pack(fill="both", expand=True)
         outer.columnconfigure(0, weight=1)
         outer.rowconfigure(3, weight=1)
+        self.main_content = outer
 
-        header = ttk.Frame(outer, style="Header.TFrame", padding=(18, 13))
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        header = ttk.Frame(outer, style="Header.TFrame", padding=(11, 6))
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 5))
         header.columnconfigure(1, weight=1)
         if self._header_icon is not None:
             self.brand_icon_label = ttk.Label(
                 header,
                 image=self._header_icon,
                 style="Icon.TLabel",
-                padding=7,
+                padding=2,
             )
         else:
             self.brand_icon_label = ttk.Label(header, text="↻", style="Icon.TLabel", width=3)
@@ -331,7 +332,7 @@ class BatchRenameApp:
         ToolTip(help_button, "打开完整说明，包括层级定义、正则示例、冲突策略和安全注意事项。")
 
         settings = ttk.Frame(outer, style="App.TFrame")
-        settings.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        settings.grid(row=1, column=0, sticky="ew", pady=(0, 5))
         settings.columnconfigure(0, weight=1, uniform="settings")
         settings.columnconfigure(1, weight=1, uniform="settings")
         self._build_scope_frame(settings)
@@ -341,12 +342,12 @@ class BatchRenameApp:
         self._build_progress_frame(outer)
 
     def _build_scope_frame(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent, style="Card.TFrame", padding=16)
-        frame.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        frame = ttk.Frame(parent, style="Card.TFrame", padding=8)
+        frame.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
         self.scope_card = frame
         frame.columnconfigure(1, weight=1)
         ttk.Label(frame, text="扫描范围", style="CardTitle.TLabel").grid(
-            row=0, column=0, columnspan=3, sticky="w", pady=(0, 11)
+            row=0, column=0, columnspan=3, sticky="w", pady=(0, 6)
         )
         ttk.Label(frame, text="根目录", style="Card.TLabel").grid(row=1, column=0, padx=(0, 8), pady=5, sticky="w")
         self.directory_entry = ttk.Entry(frame, textvariable=self.directory_var)
@@ -361,7 +362,7 @@ class BatchRenameApp:
         self._input_widgets.extend([self.directory_entry, browse])
 
         depth_row = ttk.Frame(frame, style="Card.TFrame")
-        depth_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(7, 4))
+        depth_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(4, 2))
         ttk.Label(depth_row, text="层级", style="Card.TLabel").pack(side="left", padx=(0, 10))
         all_depth = ttk.Radiobutton(
             depth_row,
@@ -389,33 +390,27 @@ class BatchRenameApp:
             "第 1 层是根目录中的直接子项；第 2 层是直接子文件夹中的项目，以此类推。符号链接不会被跟随。",
         )
         self._input_widgets.extend([all_depth, limited, self.depth_spin])
-        ttk.Label(
-            frame,
-            text="根目录本身不参与匹配；第 1 层表示根目录中的直接子项。",
-            style="Hint.TLabel",
-            wraplength=470,
-        ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
     def _build_rule_frame(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent, style="Card.TFrame", padding=16)
-        frame.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+        frame = ttk.Frame(parent, style="Card.TFrame", padding=8)
+        frame.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
         self.rule_card = frame
         frame.columnconfigure(1, weight=1)
         frame.columnconfigure(3, weight=1)
-        ttk.Label(frame, text="重命名规则", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 11))
+        ttk.Label(frame, text="重命名规则", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
         examples_button = ttk.Button(frame, text="正则示例", style="Secondary.TButton", command=self._show_regex_examples)
-        examples_button.grid(row=0, column=4, sticky="e", pady=(0, 8))
+        examples_button.grid(row=0, column=3, sticky="e", pady=(0, 5))
         ttk.Label(frame, text="查找", style="Card.TLabel").grid(row=1, column=0, padx=(0, 8), pady=4, sticky="w")
-        search_entry = ttk.Entry(frame, textvariable=self.search_var)
-        search_entry.grid(row=1, column=1, columnspan=4, pady=4, sticky="ew", ipady=4)
-        ttk.Label(frame, text="替换", style="Card.TLabel").grid(row=2, column=0, padx=(0, 8), pady=4, sticky="w")
-        replace_entry = ttk.Entry(frame, textvariable=self.replacement_var)
-        replace_entry.grid(row=2, column=1, columnspan=4, pady=4, sticky="ew", ipady=4)
-        ToolTip(search_entry, "普通模式：输入要查找的原样文本。正则模式：输入 Python 正则表达式。不能为空。")
-        ToolTip(replace_entry, "可留空，表示删除匹配内容。正则模式可使用 \\1 或 \\g<名称> 引用捕获组。")
+        self.search_entry = ttk.Entry(frame, textvariable=self.search_var, width=14)
+        self.search_entry.grid(row=1, column=1, padx=(0, 9), pady=3, sticky="ew", ipady=3)
+        ttk.Label(frame, text="替换", style="Card.TLabel").grid(row=1, column=2, padx=(0, 8), pady=3, sticky="w")
+        self.replacement_entry = ttk.Entry(frame, textvariable=self.replacement_var, width=14)
+        self.replacement_entry.grid(row=1, column=3, pady=3, sticky="ew", ipady=3)
+        ToolTip(self.search_entry, "普通模式：输入要查找的原样文本。正则模式：输入 Python 正则表达式。不能为空。")
+        ToolTip(self.replacement_entry, "可留空，表示删除匹配内容。正则模式可使用 \\1 或 \\g<名称> 引用捕获组。")
 
         options = ttk.Frame(frame, style="Card.TFrame")
-        options.grid(row=3, column=0, columnspan=5, sticky="ew", pady=(6, 2))
+        options.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(4, 1))
         regex = ttk.Checkbutton(options, text="正则表达式", variable=self.regex_var, style="Card.TCheckbutton")
         regex.pack(side="left", padx=(0, 12))
         dirs = ttk.Checkbutton(options, text="文件夹", variable=self.include_dirs_var, style="Card.TCheckbutton")
@@ -430,7 +425,7 @@ class BatchRenameApp:
         )
         extension.pack(side="left")
         self._input_widgets.extend(
-            [search_entry, replace_entry, regex, dirs, files, extension, examples_button]
+            [self.search_entry, self.replacement_entry, regex, dirs, files, extension, examples_button]
         )
         ToolTip(regex, "关闭时按普通文本查找；开启后使用 Python 正则语法，例如 (\\d{4})-(\\d{2})。")
         ToolTip(dirs, "勾选后，名称匹配的子文件夹会进入预览。")
@@ -444,11 +439,11 @@ class BatchRenameApp:
             style="Hint.TLabel",
             wraplength=900,
         )
-        self.rule_feedback_label.grid(row=4, column=0, columnspan=5, sticky="w", pady=(5, 0))
+        self.rule_feedback_label.grid(row=3, column=0, columnspan=4, sticky="w", pady=(3, 0))
 
     def _build_actions_frame(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent, style="Card.TFrame", padding=(14, 10))
-        frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+        frame = ttk.Frame(parent, style="Card.TFrame", padding=(8, 5))
+        frame.grid(row=2, column=0, sticky="ew", pady=(0, 5))
         frame.columnconfigure(2, weight=1)
         self.scan_button = ttk.Button(frame, text="扫描匹配", style="Accent.TButton", command=self._start_scan)
         self.scan_button.grid(row=0, column=0, padx=(0, 8))
@@ -477,12 +472,13 @@ class BatchRenameApp:
         self._input_widgets.append(preview_spin)
 
     def _build_preview_frame(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent, style="Card.TFrame", padding=(14, 12))
-        frame.grid(row=3, column=0, sticky="nsew", pady=(0, 10))
+        frame = ttk.Frame(parent, style="Card.TFrame", padding=(8, 5))
+        frame.grid(row=3, column=0, sticky="nsew", pady=(0, 5))
+        self.result_card = frame
         frame.rowconfigure(1, weight=1)
         frame.columnconfigure(0, weight=1)
         heading = ttk.Frame(frame, style="Card.TFrame")
-        heading.grid(row=0, column=0, sticky="ew", pady=(0, 9))
+        heading.grid(row=0, column=0, sticky="ew", pady=(0, 5))
         heading.columnconfigure(1, weight=1)
         ttk.Label(heading, text="匹配结果", style="CardTitle.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(
@@ -501,7 +497,7 @@ class BatchRenameApp:
             columns=columns,
             show="headings",
             selectmode="browse",
-            height=5,
+            height=10,
         )
         headings = {
             "kind": "类型",
@@ -533,7 +529,7 @@ class BatchRenameApp:
         return tree
 
     def _build_progress_frame(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent, style="Card.TFrame", padding=(12, 9))
+        frame = ttk.Frame(parent, style="Card.TFrame", padding=(7, 4))
         frame.grid(row=4, column=0, sticky="ew")
         frame.columnconfigure(0, weight=1)
         self.progress = ttk.Progressbar(frame, mode="determinate", maximum=100, style="Modern.Horizontal.TProgressbar")
@@ -541,7 +537,7 @@ class BatchRenameApp:
         ttk.Label(frame, textvariable=self.progress_text_var, width=42).grid(row=0, column=1, sticky="e")
         self.details_button = ttk.Button(frame, text="结果详情", style="Secondary.TButton", command=self._show_execution_details, state="disabled")
         self.details_button.grid(row=0, column=2, padx=(8, 0))
-        status = ttk.Label(self.root, textvariable=self.status_var, relief="sunken", anchor="w", padding=(8, 4))
+        status = ttk.Label(self.root, textvariable=self.status_var, relief="sunken", anchor="w", padding=(8, 2))
         status.pack(fill="x", side="bottom")
         ToolTip(status, "状态栏会提示当前结果和建议的下一步操作。")
 

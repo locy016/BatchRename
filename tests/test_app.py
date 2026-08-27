@@ -96,14 +96,32 @@ def test_main_window_uses_one_result_table_with_type_column():
         root.destroy()
 
 
-def test_default_layout_fits_inside_initial_window_height():
+def test_default_layout_fits_960_by_680_and_expands_the_result_area():
     root = tk.Tk()
     root.withdraw()
     try:
-        BatchRenameApp(root)
+        app = BatchRenameApp(root)
         root.update_idletasks()
 
-        assert root.winfo_reqheight() <= 820
+        assert root.geometry().startswith("960x680")
+        assert root.minsize() == (960, 680)
+        assert root.winfo_reqwidth() <= 960
+        assert root.winfo_reqheight() <= 680
+        assert int(app.result_tree.cget("height")) >= 10
+        assert app.main_content.grid_rowconfigure(3)["weight"] > 0
+        assert app.result_card.grid_rowconfigure(1)["weight"] > 0
+    finally:
+        root.destroy()
+
+
+def test_search_and_replacement_inputs_stay_on_one_row():
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        app = BatchRenameApp(root)
+
+        assert app.search_entry.grid_info()["row"] == app.replacement_entry.grid_info()["row"]
+        assert app.search_entry.grid_info()["column"] < app.replacement_entry.grid_info()["column"]
     finally:
         root.destroy()
 
