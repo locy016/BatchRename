@@ -675,7 +675,7 @@ class BatchRenameApp:
         self._render_preview()
         if summary["ready_total"]:
             self.execute_button.configure(state="normal")
-            self.status_var.set("预览已生成。请检查新名称和状态，确认无误后点击“执行重命名”。")
+            self.status_var.set("预览已生成。请检查新名称和状态，确认无误后点击“确认并重命名”。")
         else:
             self.execute_button.configure(state="disabled")
             if summary["matched_total"]:
@@ -967,8 +967,8 @@ class BatchRenameApp:
 2. 保持“全部层级”，或限制为 1–N 层。第 1 层是根目录中的直接子项。
 3. 输入查找内容和替换内容，选择处理文件夹、文件或两者。
 4. 点击“扫描预览”。扫描只读取名称，不会修改磁盘。
-5. 检查文件夹和文件两个标签页中的原名称、新名称及状态。
-6. 点击“执行重命名”，核对汇总并二次确认。执行期间会显示逐项进度。
+5. 在统一结果表中检查类型、原名称、新名称、状态和说明；文件夹排在文件之前，同类项目按名称排列。
+6. 点击“确认并重命名”，核对汇总并二次确认。执行期间会显示逐项进度。
 
 普通文本模式
 
@@ -980,7 +980,7 @@ class BatchRenameApp:
 
 文件扩展名
 
-默认只修改文件主名称，保护最后一个扩展名。例如查找 jpg 不会改变“照片.jpg”的扩展名。只有明确勾选“允许修改文件扩展名”后，才会处理完整文件名。
+默认只修改文件主名称，保护最后一个扩展名。例如查找 jpg 不会改变“照片.jpg”的扩展名。只有明确勾选“包含扩展名”后，才会处理完整文件名。
 
 安全与跳过策略
 
