@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import queue
 import re
+import sys
 import threading
 import tkinter as tk
 import ctypes
@@ -159,8 +160,11 @@ class BatchRenameApp:
         self._input_widgets: list[ttk.Widget] = []
         self._last_scan: ScanResult | None = None
         self._last_execution: ExecutionResult | None = None
+        self._app_icon: tk.PhotoImage | None = None
+        self._header_icon: tk.PhotoImage | None = None
 
         self._configure_style()
+        self._load_application_icon()
         self._build_ui()
         self._bind_change_tracking()
         self._update_depth_state()
@@ -283,6 +287,18 @@ class BatchRenameApp:
         style.map("Treeview.Heading", background=[("active", "#DDE7EF")])
         style.configure("Modern.Horizontal.TProgressbar", troughcolor="#DDE7ED", background=colors["accent"])
 
+    def _load_application_icon(self) -> None:
+        base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+        icon_path = base / "assets" / "app-icon.png"
+        try:
+            self._app_icon = tk.PhotoImage(file=icon_path)
+            factor = max(1, round(self._app_icon.width() / 58))
+            self._header_icon = self._app_icon.subsample(factor, factor)
+            self.root.iconphoto(True, self._app_icon)
+        except (OSError, tk.TclError):
+            self._app_icon = None
+            self._header_icon = None
+
     def _build_ui(self) -> None:
         outer = ttk.Frame(self.root, style="App.TFrame", padding=(16, 14, 16, 10))
         outer.pack(fill="both", expand=True)
@@ -292,7 +308,15 @@ class BatchRenameApp:
         header = ttk.Frame(outer, style="Header.TFrame", padding=(18, 13))
         header.grid(row=0, column=0, sticky="ew", pady=(0, 12))
         header.columnconfigure(1, weight=1)
-        self.brand_icon_label = ttk.Label(header, text="↻", style="Icon.TLabel", width=3)
+        if self._header_icon is not None:
+            self.brand_icon_label = ttk.Label(
+                header,
+                image=self._header_icon,
+                style="Icon.TLabel",
+                padding=7,
+            )
+        else:
+            self.brand_icon_label = ttk.Label(header, text="↻", style="Icon.TLabel", width=3)
         self.brand_icon_label.grid(row=0, column=0, rowspan=2, sticky="nsw", padx=(0, 13))
         ttk.Label(header, text="批量重命名", style="HeaderTitle.TLabel").grid(
             row=0, column=1, sticky="w"

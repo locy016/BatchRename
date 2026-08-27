@@ -106,3 +106,15 @@ def test_default_layout_fits_inside_initial_window_height():
         assert root.winfo_reqheight() <= 820
     finally:
         root.destroy()
+
+
+def test_main_window_loads_project_icon_for_window_and_header():
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        app = BatchRenameApp(root)
+
+        assert app._app_icon is not None
+        assert app.brand_icon_label.cget("image")
+    finally:
+        root.destroy()
