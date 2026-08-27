@@ -420,6 +420,23 @@ class BatchRenameApp:
             arrowcolor=[("active", colors["accent"]), ("disabled", "#AAB4BD")],
         )
         style.configure(
+            "Modern.TCombobox",
+            fieldbackground="#F8FAFC",
+            background="#E8EEF4",
+            foreground=colors["text"],
+            arrowcolor=colors["navy_soft"],
+            bordercolor=colors["border"],
+            lightcolor=colors["border"],
+            darkcolor=colors["border"],
+            padding=(6, 3),
+        )
+        style.map(
+            "Modern.TCombobox",
+            fieldbackground=[("readonly", "#F8FAFC")],
+            bordercolor=[("focus", colors["accent"])],
+            arrowcolor=[("active", colors["accent"])],
+        )
+        style.configure(
             "Accent.TButton",
             background=colors["accent"],
             foreground="#FFFFFF",
@@ -1132,84 +1149,195 @@ class BatchRenameApp:
 
     def _show_regex_examples(self) -> None:
         window = tk.Toplevel(self.root)
-        window.title("正则表达式示例")
-        window.geometry("900x540")
-        window.minsize(760, 460)
+        window.title("常用正则模板")
+        window.geometry("920x580")
+        window.minsize(820, 520)
         window.transient(self.root)
         window.grab_set()
+        self.regex_examples_window = window
 
-        outer = ttk.Frame(window, padding=16)
+        outer = ttk.Frame(window, style="App.TFrame", padding=14)
         outer.pack(fill="both", expand=True)
         outer.columnconfigure(1, weight=1)
         outer.rowconfigure(2, weight=1)
-        ttk.Label(outer, text="从可运行的示例开始", style="Title.TLabel").grid(
+        ttk.Label(outer, text="从常用场景选择规则", style="Title.TLabel").grid(
             row=0, column=0, columnspan=2, sticky="w"
         )
         ttk.Label(
             outer,
-            text="选择示例查看表达式、捕获组和实际结果；应用后仍可按自己的文件名修改。",
+            text="先按用途分类，再查看真实处理前后效果；一键应用只填写规则，不会立即修改文件。",
             style="Subtitle.TLabel",
         ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(3, 12))
 
-        titles = tk.StringVar(value=[example.title for example in REGEX_EXAMPLES])
-        selector = tk.Listbox(
-            outer,
-            listvariable=titles,
+        navigation = ttk.Frame(outer, style="Card.TFrame", padding=12)
+        navigation.grid(row=2, column=0, sticky="nsew", padx=(0, 10))
+        navigation.columnconfigure(0, weight=1)
+        navigation.rowconfigure(3, weight=1)
+        ttk.Label(navigation, text="模板分类", style="CardTitle.TLabel").grid(
+            row=0, column=0, sticky="w", pady=(0, 7)
+        )
+        categories = tuple(dict.fromkeys(example.category for example in REGEX_EXAMPLES))
+        self.regex_category_var = tk.StringVar(window, value=categories[0])
+        self.regex_category_selector = ttk.Combobox(
+            navigation,
+            textvariable=self.regex_category_var,
+            values=categories,
+            state="readonly",
+            width=18,
+            style="Modern.TCombobox",
+        )
+        self.regex_category_selector.grid(row=1, column=0, sticky="ew", pady=(0, 11))
+        ttk.Label(navigation, text="可用规则", style="CardTitle.TLabel").grid(
+            row=2, column=0, sticky="w", pady=(0, 7)
+        )
+        list_frame = ttk.Frame(navigation, style="Card.TFrame")
+        list_frame.grid(row=3, column=0, sticky="nsew")
+        list_frame.rowconfigure(0, weight=1)
+        list_frame.columnconfigure(0, weight=1)
+        self.regex_template_list = tk.Listbox(
+            list_frame,
             exportselection=False,
             activestyle="none",
             font=("Microsoft YaHei UI", 10),
-            width=20,
+            width=21,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=1,
+            highlightbackground=self.COLORS["border"],
+            highlightcolor=self.COLORS["accent"],
+            background="#F8FAFC",
+            foreground=self.COLORS["text"],
+            selectbackground=self.COLORS["accent"],
+            selectforeground="#FFFFFF",
         )
-        selector.grid(row=2, column=0, sticky="ns", padx=(0, 14))
+        self.regex_template_list.grid(row=0, column=0, sticky="nsew")
+        list_scrollbar = ttk.Scrollbar(
+            list_frame,
+            orient="vertical",
+            command=self.regex_template_list.yview,
+            style="Modern.Vertical.TScrollbar",
+        )
+        list_scrollbar.grid(row=0, column=1, sticky="ns")
+        self.regex_template_list.configure(yscrollcommand=list_scrollbar.set)
 
-        details = ttk.LabelFrame(outer, text="示例详情", padding=14)
+        details = ttk.Frame(outer, style="Card.TFrame", padding=16)
         details.grid(row=2, column=1, sticky="nsew")
         details.columnconfigure(1, weight=1)
-        purpose_var = tk.StringVar()
-        search_var = tk.StringVar()
-        replacement_var = tk.StringVar()
-        before_var = tk.StringVar()
-        after_var = tk.StringVar()
-        fields = (
-            ("用途", purpose_var),
-            ("查找表达式", search_var),
-            ("替换内容", replacement_var),
-            ("原名称", before_var),
-            ("结果", after_var),
+        ttk.Label(details, text="规则说明", style="CardTitle.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 8)
         )
-        for row, (label, variable) in enumerate(fields):
-            ttk.Label(details, text=f"{label}：").grid(row=row, column=0, sticky="nw", pady=6)
-            ttk.Label(
-                details,
-                textvariable=variable,
-                wraplength=560,
-                font=("Consolas", 10) if row in {1, 2} else None,
-            ).grid(row=row, column=1, sticky="nw", pady=6)
+        self.regex_purpose_var = tk.StringVar(window)
         ttk.Label(
             details,
-            text="提示：\\1 表示第一个括号捕获的内容，\\2 表示第二个。应用示例不会立即修改文件。",
+            textvariable=self.regex_purpose_var,
+            style="Card.TLabel",
+            wraplength=590,
+            justify="left",
+        ).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 12))
+
+        self.regex_example_search_var = tk.StringVar(window)
+        self.regex_example_replacement_var = tk.StringVar(window)
+        ttk.Label(details, text="查找表达式", style="Card.TLabel").grid(
+            row=2, column=0, sticky="w", padx=(0, 10), pady=5
+        )
+        self.regex_search_entry = ttk.Entry(
+            details,
+            textvariable=self.regex_example_search_var,
+            state="readonly",
+            style="Modern.TEntry",
+            font=("Consolas", 10),
+        )
+        self.regex_search_entry.grid(row=2, column=1, sticky="ew", pady=5)
+        ttk.Label(details, text="替换内容", style="Card.TLabel").grid(
+            row=3, column=0, sticky="w", padx=(0, 10), pady=5
+        )
+        self.regex_replacement_entry = ttk.Entry(
+            details,
+            textvariable=self.regex_example_replacement_var,
+            state="readonly",
+            style="Modern.TEntry",
+            font=("Consolas", 10),
+        )
+        self.regex_replacement_entry.grid(row=3, column=1, sticky="ew", pady=5)
+
+        preview = ttk.Frame(details, style="Card.TFrame")
+        preview.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(14, 8))
+        preview.columnconfigure(1, weight=1)
+        self.regex_before_var = tk.StringVar(window)
+        self.regex_after_var = tk.StringVar(window)
+        ttk.Label(preview, text="处理前", style="Hint.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            preview,
+            textvariable=self.regex_before_var,
+            style="Card.TLabel",
+            font=("Microsoft YaHei UI", 10),
+        ).grid(row=0, column=1, sticky="w", padx=(12, 0))
+        ttk.Label(preview, text="处理后", style="Hint.TLabel").grid(
+            row=1, column=0, sticky="w", pady=(9, 0)
+        )
+        ttk.Label(
+            preview,
+            textvariable=self.regex_after_var,
+            style="Card.TLabel",
+            foreground=self.COLORS["ready"],
+            font=("Microsoft YaHei UI", 10, "bold"),
+        ).grid(row=1, column=1, sticky="w", padx=(12, 0), pady=(9, 0))
+
+        self.regex_option_note_var = tk.StringVar(window)
+        ttk.Label(
+            details,
+            textvariable=self.regex_option_note_var,
             style="Hint.TLabel",
             wraplength=620,
-        ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(16, 8))
-        apply_button = ttk.Button(details, text="应用此示例", style="Accent.TButton")
-        apply_button.grid(row=6, column=1, sticky="e", pady=(10, 0))
+        ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 8))
+        self.regex_apply_button = ttk.Button(
+            details,
+            text="一键应用此规则",
+            style="Accent.TButton",
+        )
+        self.regex_apply_button.grid(row=6, column=1, sticky="e", pady=(10, 0))
 
         def show_selected(_event=None) -> None:
-            selection = selector.curselection()
-            index = selection[0] if selection else 0
-            example = REGEX_EXAMPLES[index]
-            purpose_var.set(example.purpose)
-            search_var.set(example.search)
-            replacement_var.set(example.replacement or "（空文本）")
-            before_var.set(example.before)
-            after_var.set(example.after)
-            apply_button.configure(
+            selection = self.regex_template_list.curselection()
+            if not selection or not self._visible_regex_examples:
+                return
+            example = self._visible_regex_examples[selection[0]]
+            self.regex_purpose_var.set(example.purpose)
+            self.regex_example_search_var.set(example.search)
+            self.regex_example_replacement_var.set(
+                example.replacement or "（空文本：删除匹配内容）"
+            )
+            self.regex_before_var.set(example.before)
+            self.regex_after_var.set(example.after)
+            self.regex_option_note_var.set(
+                "应用后会自动开启“包含扩展名”；请特别核对扩展名变化。"
+                if example.rename_extension
+                else "应用后保留文件扩展名；仍可在主窗口按实际需要调整选项。"
+            )
+            self.regex_apply_button.configure(
                 command=lambda selected=example: self._apply_regex_example(selected, window)
             )
 
-        selector.bind("<<ListboxSelect>>", show_selected)
-        selector.selection_set(0)
-        show_selected()
+        def filter_category(_event=None) -> None:
+            category = self.regex_category_var.get()
+            self._visible_regex_examples = [
+                example for example in REGEX_EXAMPLES if example.category == category
+            ]
+            self.regex_template_list.delete(0, "end")
+            for example in self._visible_regex_examples:
+                self.regex_template_list.insert("end", example.title)
+            if self._visible_regex_examples:
+                self.regex_template_list.selection_set(0)
+                self.regex_template_list.activate(0)
+                show_selected()
+
+        self.regex_category_selector.bind("<<ComboboxSelected>>", filter_category)
+        self.regex_template_list.bind("<<ListboxSelect>>", show_selected)
+        self.regex_template_list.bind(
+            "<Double-Button-1>",
+            lambda _event: self.regex_apply_button.invoke(),
+        )
+        filter_category()
 
     def _show_help(self) -> None:
         help_text = """使用流程

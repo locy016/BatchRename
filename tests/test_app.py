@@ -107,6 +107,36 @@ def test_applying_extension_regex_example_enables_full_filename_processing(tk_wi
     assert app.rename_extension_var.get() is True
 
 
+def test_regex_template_chooser_filters_by_category_and_exposes_one_click_apply(
+    tk_window,
+):
+    app = BatchRenameApp(tk_window)
+    original_templates = REGEX_EXAMPLES
+
+    app._show_regex_examples()
+    categories = tuple(app.regex_category_selector.cget("values"))
+
+    assert len(categories) >= 4
+    assert str(app.regex_category_selector.cget("state")) == "readonly"
+    assert str(app.regex_search_entry.cget("state")) == "readonly"
+    assert str(app.regex_replacement_entry.cget("state")) == "readonly"
+    assert app.regex_apply_button.cget("text") == "一键应用此规则"
+
+    selected_category = categories[-1]
+    app.regex_category_var.set(selected_category)
+    app.regex_category_selector.event_generate("<<ComboboxSelected>>")
+    tk_window.update()
+
+    visible_titles = app.regex_template_list.get(0, "end")
+    expected_titles = tuple(
+        item.title for item in REGEX_EXAMPLES if item.category == selected_category
+    )
+    assert visible_titles == expected_titles
+    assert REGEX_EXAMPLES is original_templates
+
+    app.regex_examples_window.destroy()
+
+
 def test_main_window_uses_one_result_table_with_type_column(tk_window):
     app = BatchRenameApp(tk_window)
 
