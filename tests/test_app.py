@@ -229,12 +229,19 @@ def test_settings_use_35_65_split_and_complete_single_line_statistics(tk_window)
 
     assert app.settings_frame.grid_columnconfigure(0)["weight"] == 35
     assert app.settings_frame.grid_columnconfigure(1)["weight"] == 65
-    assert not app.settings_frame.grid_columnconfigure(0)["uniform"]
+    assert app.settings_frame.grid_columnconfigure(0)["uniform"] == "settings"
+    assert app.settings_frame.grid_columnconfigure(1)["uniform"] == "settings"
     assert app.preview_limit_var.get() == 100
     assert app.stats_var.get() == (
-        "匹配：0 项 | 可修改：0 项 | 名称未变化：0 项 | 阻止执行：0 项"
+        "匹配：0项 | 可修改：0项 | 名称未变化：0项 | 阻止执行：0项"
     )
     assert not app.stats_label.cget("wraplength")
+
+    tk_window.deiconify()
+    tk_window.update()
+    settings_width = app.scope_card.winfo_width() + app.rule_card.winfo_width()
+    assert app.scope_card.winfo_width() / settings_width == pytest.approx(0.35, abs=0.02)
+    assert app.stats_label.winfo_width() >= app.stats_label.winfo_reqwidth()
 
 
 def test_search_and_replacement_inputs_stay_on_one_row(tk_window):

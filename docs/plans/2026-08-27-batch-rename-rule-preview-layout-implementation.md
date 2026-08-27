@@ -39,7 +39,7 @@ Expected: FAIL because the current layout is 50/50, preview defaults to 10, and 
 
 **Step 3: Implement the minimal layout contract**
 
-Expose `settings_frame`, set column weights to 35 and 65 without `uniform`, initialize the preview limit to 100, initialize the complete zero statistics string, expose `stats_label`, and remove its wrapping constraint. Adjust action-grid weights and compact spacing only as needed to keep all controls on one row at 960 pixels.
+Expose `settings_frame`, set column weights to 35 and 65 in one proportional `uniform` group, initialize the preview limit to 100, initialize the complete zero statistics string, expose `stats_label`, and remove its wrapping constraint. Verify the rendered card widths rather than only inspecting grid configuration. Adjust action-grid weights and compact spacing only as needed to keep all controls on one row at 960 pixels.
 
 **Step 4: Run tests and verify GREEN**
 
@@ -240,4 +240,4 @@ Expected: tests pass inside the build and `dist\BatchRename.exe` is produced. Co
 发布：记录规则预览版本完整验证结果
 ```
 
-Do not push. Preserve the feature worktree until the user explicitly chooses a branch integration option.
+Push the verified feature branch to `origin` after the user explicitly authorizes publication. Preserve the feature worktree so follow-up fixes can continue without altering the main checkout.

@@ -383,7 +383,7 @@ class BatchRenameApp:
         self.preview_limit_var = tk.IntVar(value=100)
         self.rule_feedback_var = tk.StringVar(value="请输入查找内容；普通模式按原样匹配文本。")
         self.stats_var = tk.StringVar(
-            value="匹配：0 项 | 可修改：0 项 | 名称未变化：0 项 | 阻止执行：0 项"
+            value="匹配：0项 | 可修改：0项 | 名称未变化：0项 | 阻止执行：0项"
         )
         self.status_var = tk.StringVar(value="请设置目录和规则，然后点击“结果预览”。")
         self.progress_text_var = tk.StringVar(value="等待操作")
@@ -696,8 +696,8 @@ class BatchRenameApp:
 
         settings = ttk.Frame(outer, style="App.TFrame")
         settings.grid(row=1, column=0, sticky="ew", pady=(0, 5))
-        settings.columnconfigure(0, weight=35)
-        settings.columnconfigure(1, weight=65)
+        settings.columnconfigure(0, weight=35, uniform="settings")
+        settings.columnconfigure(1, weight=65, uniform="settings")
         self.settings_frame = settings
         self._build_scope_frame(settings)
         self._build_rule_frame(settings)
@@ -720,7 +720,10 @@ class BatchRenameApp:
             row=1, column=0, padx=(0, 8), pady=5, sticky="w"
         )
         self.directory_entry = ttk.Entry(
-            frame, textvariable=self.directory_var, style="Modern.TEntry"
+            frame,
+            textvariable=self.directory_var,
+            width=12,
+            style="Modern.TEntry",
         )
         self.directory_entry.grid(row=1, column=1, padx=0, pady=5, sticky="ew", ipady=4)
         browse = ttk.Button(frame, text="选择…", style="Secondary.TButton", command=self._choose_directory)
@@ -739,7 +742,7 @@ class BatchRenameApp:
         )
         all_depth = ttk.Radiobutton(
             depth_row,
-            text="扫描到最深处",
+            text="全部层级",
             variable=self.depth_mode_var,
             value="all",
             style="Card.TRadiobutton",
@@ -748,7 +751,7 @@ class BatchRenameApp:
         all_depth.pack(side="left", padx=(0, 12))
         limited = ttk.Radiobutton(
             depth_row,
-            text="最多",
+            text="限为",
             variable=self.depth_mode_var,
             value="limited",
             style="Card.TRadiobutton",
@@ -1142,8 +1145,8 @@ class BatchRenameApp:
         self._last_scan = result
         summary = summarize_candidates(result.candidates)
         self.stats_var.set(
-            f"匹配：{summary['matched_total']} 项  |  可修改：{summary['ready_total']} 项  |  "
-            f"名称未变化：{summary['unchanged_total']} 项  |  阻止执行：{summary['blocked_total']} 项"
+            f"匹配：{summary['matched_total']}项 | 可修改：{summary['ready_total']}项 | "
+            f"名称未变化：{summary['unchanged_total']}项 | 阻止执行：{summary['blocked_total']}项"
         )
         self.progress_text_var.set(f"扫描完成：找到 {summary['matched_total']} 个名称匹配")
         self._render_preview()
