@@ -279,6 +279,13 @@ def test_main_controls_use_the_polished_component_styles(tk_window):
     assert app.search_entry.cget("style") == "Modern.TEntry"
     assert app.replacement_entry.cget("style") == "Modern.TEntry"
     assert app.depth_spin.cget("style") == "Modern.TSpinbox"
+    assert app.preview_spin.cget("style") == "Modern.TSpinbox"
+    assert app.depth_spin.cget("justify") == "center"
+    assert app.preview_spin.cget("justify") == "center"
+    assert app.root_directory_label.cget("style") == "Field.TLabel"
+    assert app.search_field_label.cget("style") == "Field.TLabel"
+    assert app.replacement_field_label.cget("style") == "Field.TLabel"
+    assert app.stats_label.cget("style") == "MatchStats.TLabel"
     assert app.result_scrollbar.cget("style") == "Modern.Vertical.TScrollbar"
     assert (
         app.result_horizontal_scrollbar.cget("style")
@@ -287,6 +294,11 @@ def test_main_controls_use_the_polished_component_styles(tk_window):
     assert app.progress.cget("style") == "Modern.Horizontal.TProgressbar"
     assert style.lookup("Modern.TEntry", "fieldbackground")
     assert style.lookup("Modern.TSpinbox", "fieldbackground")
+    assert ("active", app.COLORS["accent"]) in style.map(
+        "Modern.TSpinbox", "arrowcolor"
+    )
+    assert style.lookup("Field.TLabel", "font")
+    assert style.lookup("MatchStats.TLabel", "padding")
     assert style.lookup("Modern.Vertical.TScrollbar", "troughcolor")
     assert style.lookup("Modern.Horizontal.TProgressbar", "troughcolor")
 

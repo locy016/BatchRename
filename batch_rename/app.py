@@ -455,6 +455,18 @@ class BatchRenameApp:
             font=("Microsoft YaHei UI", 9),
         )
         style.configure(
+            "Field.TLabel",
+            background=colors["card"],
+            foreground=colors["navy_soft"],
+            font=("Microsoft YaHei UI", 9, "bold"),
+        )
+        style.configure(
+            "Unit.TLabel",
+            background=colors["card"],
+            foreground=colors["muted"],
+            font=("Microsoft YaHei UI", 9),
+        )
+        style.configure(
             "Hint.TLabel",
             background=colors["card"],
             foreground=colors["muted"],
@@ -465,6 +477,13 @@ class BatchRenameApp:
             background=colors["card"],
             foreground=colors["navy"],
             font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.configure(
+            "MatchStats.TLabel",
+            background="#EAF7F7",
+            foreground=colors["navy"],
+            font=("Microsoft YaHei UI", 9, "bold"),
+            padding=(8, 5),
         )
         style.configure("Card.TCheckbutton", background=colors["card"], foreground=colors["text"])
         style.configure(
@@ -694,7 +713,12 @@ class BatchRenameApp:
         ttk.Label(frame, text="扫描范围", style="CardTitle.TLabel").grid(
             row=0, column=0, columnspan=3, sticky="w", pady=(0, 6)
         )
-        ttk.Label(frame, text="根目录", style="Card.TLabel").grid(row=1, column=0, padx=(0, 8), pady=5, sticky="w")
+        self.root_directory_label = ttk.Label(
+            frame, text="根目录", style="Field.TLabel"
+        )
+        self.root_directory_label.grid(
+            row=1, column=0, padx=(0, 8), pady=5, sticky="w"
+        )
         self.directory_entry = ttk.Entry(
             frame, textvariable=self.directory_var, style="Modern.TEntry"
         )
@@ -710,7 +734,9 @@ class BatchRenameApp:
 
         depth_row = ttk.Frame(frame, style="Card.TFrame")
         depth_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(4, 2))
-        ttk.Label(depth_row, text="层级", style="Card.TLabel").pack(side="left", padx=(0, 10))
+        ttk.Label(depth_row, text="层级", style="Field.TLabel").pack(
+            side="left", padx=(0, 10)
+        )
         all_depth = ttk.Radiobutton(
             depth_row,
             text="扫描到最深处",
@@ -736,9 +762,10 @@ class BatchRenameApp:
             width=6,
             textvariable=self.depth_var,
             style="Modern.TSpinbox",
+            justify="center",
         )
         self.depth_spin.pack(side="left", padx=5)
-        ttk.Label(depth_row, text="层").pack(side="left")
+        ttk.Label(depth_row, text="层", style="Unit.TLabel").pack(side="left")
         ToolTip(
             depth_row,
             "第 1 层是根目录中的直接子项；第 2 层是直接子文件夹中的项目，以此类推。符号链接不会被跟随。",
@@ -759,7 +786,12 @@ class BatchRenameApp:
             command=self._show_regex_examples,
         )
         self.regex_templates_button.grid(row=0, column=4, sticky="e", pady=(0, 5))
-        ttk.Label(frame, text="查找", style="Card.TLabel").grid(row=1, column=0, padx=(0, 8), pady=4, sticky="w")
+        self.search_field_label = ttk.Label(
+            frame, text="查找", style="Field.TLabel"
+        )
+        self.search_field_label.grid(
+            row=1, column=0, padx=(0, 8), pady=4, sticky="w"
+        )
         self.search_entry = ttk.Entry(
             frame, textvariable=self.search_var, width=14, style="Modern.TEntry"
         )
@@ -771,7 +803,12 @@ class BatchRenameApp:
             command=self._start_scan,
         )
         self.search_scan_button.grid(row=1, column=2, padx=(0, 9), pady=3)
-        ttk.Label(frame, text="替换", style="Card.TLabel").grid(row=1, column=3, padx=(0, 8), pady=3, sticky="w")
+        self.replacement_field_label = ttk.Label(
+            frame, text="替换", style="Field.TLabel"
+        )
+        self.replacement_field_label.grid(
+            row=1, column=3, padx=(0, 8), pady=3, sticky="w"
+        )
         self.replacement_entry = ttk.Entry(
             frame,
             textvariable=self.replacement_var,
@@ -841,11 +878,13 @@ class BatchRenameApp:
         self.stats_label = ttk.Label(
             frame,
             textvariable=self.stats_var,
-            style="Stats.TLabel",
+            style="MatchStats.TLabel",
         )
         self.stats_label.grid(row=0, column=2, sticky="w")
-        ttk.Label(frame, text="预览上限：").grid(row=0, column=3, padx=(8, 4))
-        preview_spin = ttk.Spinbox(
+        ttk.Label(frame, text="预览上限", style="Field.TLabel").grid(
+            row=0, column=3, padx=(8, 4)
+        )
+        self.preview_spin = ttk.Spinbox(
             frame,
             from_=1,
             to=100,
@@ -853,13 +892,16 @@ class BatchRenameApp:
             textvariable=self.preview_limit_var,
             command=self._render_preview,
             style="Modern.TSpinbox",
+            justify="center",
         )
-        preview_spin.grid(row=0, column=4)
-        ttk.Label(frame, text="条").grid(row=0, column=5, padx=(4, 0))
+        self.preview_spin.grid(row=0, column=4)
+        ttk.Label(frame, text="条", style="Unit.TLabel").grid(
+            row=0, column=5, padx=(4, 0)
+        )
         ToolTip(self.scan_button, "只读取目录并生成预览，不会修改任何名称。修改规则后必须重新扫描。")
         ToolTip(self.execute_button, "显示最终汇总并要求二次确认；只执行状态为“可修改”的项目。")
-        ToolTip(preview_spin, "仅控制表格显示数量，不改变扫描统计和最终执行数量。")
-        self._input_widgets.append(preview_spin)
+        ToolTip(self.preview_spin, "仅控制表格显示数量，不改变扫描统计和最终执行数量。")
+        self._input_widgets.append(self.preview_spin)
 
     def _build_preview_frame(self, parent: ttk.Frame) -> None:
         frame = ttk.Frame(parent, style="Card.TFrame", padding=(8, 5))
