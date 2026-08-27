@@ -170,6 +170,31 @@ def test_tree_cell_content_returns_heading_and_full_value():
         root.destroy()
 
 
+def test_main_controls_use_the_polished_component_styles():
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        app = BatchRenameApp(root)
+        style = ttk.Style(root)
+
+        assert app.directory_entry.cget("style") == "Modern.TEntry"
+        assert app.search_entry.cget("style") == "Modern.TEntry"
+        assert app.replacement_entry.cget("style") == "Modern.TEntry"
+        assert app.depth_spin.cget("style") == "Modern.TSpinbox"
+        assert app.result_scrollbar.cget("style") == "Modern.Vertical.TScrollbar"
+        assert (
+            app.result_horizontal_scrollbar.cget("style")
+            == "Modern.Horizontal.TScrollbar"
+        )
+        assert app.progress.cget("style") == "Modern.Horizontal.TProgressbar"
+        assert style.lookup("Modern.TEntry", "fieldbackground")
+        assert style.lookup("Modern.TSpinbox", "fieldbackground")
+        assert style.lookup("Modern.Vertical.TScrollbar", "troughcolor")
+        assert style.lookup("Modern.Horizontal.TProgressbar", "troughcolor")
+    finally:
+        root.destroy()
+
+
 def test_main_window_loads_project_icon_for_window_and_header():
     root = tk.Tk()
     root.withdraw()

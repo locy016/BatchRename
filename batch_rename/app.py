@@ -152,12 +152,24 @@ class TreeCellToolTip:
             foreground="#1D2A35",
             relief="solid",
             borderwidth=1,
-            padx=10,
-            pady=7,
+            highlightbackground="#9FB5C5",
+            highlightthickness=1,
+            padx=11,
+            pady=8,
+            font=("Microsoft YaHei UI", 9),
             wraplength=620,
         )
         label.pack()
-        self.window.wm_geometry(f"+{x + 14}+{y + 18}")
+        self.window.update_idletasks()
+        target_x = min(
+            x + 14,
+            self.tree.winfo_screenwidth() - self.window.winfo_reqwidth() - 8,
+        )
+        target_y = min(
+            y + 18,
+            self.tree.winfo_screenheight() - self.window.winfo_reqheight() - 8,
+        )
+        self.window.wm_geometry(f"+{max(8, target_x)}+{max(8, target_y)}")
 
     def hide(self, _event=None) -> None:
         if self.after_id is not None:
@@ -202,15 +214,22 @@ class ToolTip:
             self.window,
             text=self.text,
             justify="left",
-            background="#fffbe6",
-            foreground="#202020",
+            background="#F7FBFD",
+            foreground="#1D2A35",
             relief="solid",
             borderwidth=1,
-            padx=9,
-            pady=6,
+            highlightbackground="#9FB5C5",
+            highlightthickness=1,
+            padx=11,
+            pady=8,
+            font=("Microsoft YaHei UI", 9),
             wraplength=460,
         )
         label.pack()
+        self.window.update_idletasks()
+        target_x = min(x, self.widget.winfo_screenwidth() - self.window.winfo_reqwidth() - 8)
+        target_y = min(y, self.widget.winfo_screenheight() - self.window.winfo_reqheight() - 8)
+        self.window.wm_geometry(f"+{max(8, target_x)}+{max(8, target_y)}")
 
     def _hide(self, _event=None) -> None:
         self._cancel()
@@ -340,9 +359,66 @@ class BatchRenameApp:
             font=("Microsoft YaHei UI", 10, "bold"),
         )
         style.configure("Card.TCheckbutton", background=colors["card"], foreground=colors["text"])
-        style.map("Card.TCheckbutton", background=[("active", colors["card"])])
-        style.configure("Card.TRadiobutton", background=colors["card"], foreground=colors["text"])
-        style.map("Card.TRadiobutton", background=[("active", colors["card"])])
+        style.configure(
+            "Card.TCheckbutton",
+            padding=(4, 3),
+            font=("Microsoft YaHei UI", 9),
+            focuscolor=colors["accent"],
+        )
+        style.map(
+            "Card.TCheckbutton",
+            background=[("active", "#F0F7F8"), ("disabled", colors["card"])],
+            foreground=[("disabled", "#99A5AF")],
+        )
+        style.configure(
+            "Card.TRadiobutton",
+            background=colors["card"],
+            foreground=colors["text"],
+            padding=(4, 3),
+            font=("Microsoft YaHei UI", 9),
+            focuscolor=colors["accent"],
+        )
+        style.map(
+            "Card.TRadiobutton",
+            background=[("active", "#F0F7F8"), ("disabled", colors["card"])],
+            foreground=[("disabled", "#99A5AF")],
+        )
+        style.configure(
+            "Modern.TEntry",
+            fieldbackground="#F8FAFC",
+            foreground=colors["text"],
+            bordercolor=colors["border"],
+            lightcolor=colors["border"],
+            darkcolor=colors["border"],
+            insertcolor=colors["navy"],
+            padding=(7, 3),
+        )
+        style.map(
+            "Modern.TEntry",
+            fieldbackground=[("disabled", "#EEF2F5")],
+            foreground=[("disabled", "#8C99A4")],
+            bordercolor=[("focus", colors["accent"]), ("invalid", colors["blocked"])],
+            lightcolor=[("focus", colors["accent"])],
+            darkcolor=[("focus", colors["accent"])],
+        )
+        style.configure(
+            "Modern.TSpinbox",
+            fieldbackground="#F8FAFC",
+            foreground=colors["text"],
+            arrowcolor=colors["navy_soft"],
+            bordercolor=colors["border"],
+            lightcolor=colors["border"],
+            darkcolor=colors["border"],
+            padding=(5, 3),
+            arrowsize=12,
+        )
+        style.map(
+            "Modern.TSpinbox",
+            fieldbackground=[("disabled", "#EEF2F5")],
+            foreground=[("disabled", "#8C99A4")],
+            bordercolor=[("focus", colors["accent"])],
+            arrowcolor=[("active", colors["accent"]), ("disabled", "#AAB4BD")],
+        )
         style.configure(
             "Accent.TButton",
             background=colors["accent"],
@@ -350,6 +426,7 @@ class BatchRenameApp:
             borderwidth=0,
             padding=(16, 7),
             font=("Microsoft YaHei UI", 10, "bold"),
+            focuscolor=colors["accent_hover"],
         )
         style.map(
             "Accent.TButton",
@@ -363,6 +440,7 @@ class BatchRenameApp:
             borderwidth=0,
             padding=(12, 6),
             font=("Microsoft YaHei UI", 9),
+            focuscolor="#C7D8E5",
         )
         style.map("Secondary.TButton", background=[("active", "#D9E4ED")])
         style.configure(
@@ -371,6 +449,7 @@ class BatchRenameApp:
             foreground="#FFFFFF",
             borderwidth=0,
             padding=(13, 8),
+            focuscolor="#356384",
         )
         style.map("Header.TButton", background=[("active", "#356384")])
         style.configure(
@@ -391,7 +470,41 @@ class BatchRenameApp:
             padding=(7, 4),
         )
         style.map("Treeview.Heading", background=[("active", "#DDE7EF")])
-        style.configure("Modern.Horizontal.TProgressbar", troughcolor="#DDE7ED", background=colors["accent"])
+        for orientation in ("Horizontal", "Vertical"):
+            style.configure(
+                f"Modern.{orientation}.TScrollbar",
+                troughcolor="#EDF2F6",
+                background="#AFC2D0",
+                bordercolor="#EDF2F6",
+                lightcolor="#AFC2D0",
+                darkcolor="#AFC2D0",
+                arrowcolor=colors["navy_soft"],
+                relief="flat",
+                borderwidth=0,
+                width=11,
+            )
+            style.map(
+                f"Modern.{orientation}.TScrollbar",
+                background=[("active", colors["accent"]), ("pressed", colors["accent_hover"])],
+                arrowcolor=[("active", "#FFFFFF")],
+            )
+        style.configure(
+            "Modern.Horizontal.TProgressbar",
+            troughcolor="#DDE7ED",
+            background=colors["accent"],
+            lightcolor=colors["accent"],
+            darkcolor=colors["accent"],
+            bordercolor="#DDE7ED",
+            thickness=11,
+        )
+        style.configure(
+            "Status.TLabel",
+            background="#E8EEF4",
+            foreground=colors["navy_soft"],
+            bordercolor=colors["border"],
+            relief="flat",
+            font=("Microsoft YaHei UI", 9),
+        )
 
     def _load_application_icon(self) -> None:
         base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
@@ -456,7 +569,9 @@ class BatchRenameApp:
             row=0, column=0, columnspan=3, sticky="w", pady=(0, 6)
         )
         ttk.Label(frame, text="根目录", style="Card.TLabel").grid(row=1, column=0, padx=(0, 8), pady=5, sticky="w")
-        self.directory_entry = ttk.Entry(frame, textvariable=self.directory_var)
+        self.directory_entry = ttk.Entry(
+            frame, textvariable=self.directory_var, style="Modern.TEntry"
+        )
         self.directory_entry.grid(row=1, column=1, padx=0, pady=5, sticky="ew", ipady=4)
         browse = ttk.Button(frame, text="选择…", style="Secondary.TButton", command=self._choose_directory)
         browse.grid(row=1, column=2, padx=(8, 0), pady=5)
@@ -488,7 +603,14 @@ class BatchRenameApp:
             command=self._update_depth_state,
         )
         limited.pack(side="left")
-        self.depth_spin = ttk.Spinbox(depth_row, from_=1, to=999, width=6, textvariable=self.depth_var)
+        self.depth_spin = ttk.Spinbox(
+            depth_row,
+            from_=1,
+            to=999,
+            width=6,
+            textvariable=self.depth_var,
+            style="Modern.TSpinbox",
+        )
         self.depth_spin.pack(side="left", padx=5)
         ttk.Label(depth_row, text="层").pack(side="left")
         ToolTip(
@@ -507,10 +629,17 @@ class BatchRenameApp:
         examples_button = ttk.Button(frame, text="正则示例", style="Secondary.TButton", command=self._show_regex_examples)
         examples_button.grid(row=0, column=3, sticky="e", pady=(0, 5))
         ttk.Label(frame, text="查找", style="Card.TLabel").grid(row=1, column=0, padx=(0, 8), pady=4, sticky="w")
-        self.search_entry = ttk.Entry(frame, textvariable=self.search_var, width=14)
+        self.search_entry = ttk.Entry(
+            frame, textvariable=self.search_var, width=14, style="Modern.TEntry"
+        )
         self.search_entry.grid(row=1, column=1, padx=(0, 9), pady=3, sticky="ew", ipady=3)
         ttk.Label(frame, text="替换", style="Card.TLabel").grid(row=1, column=2, padx=(0, 8), pady=3, sticky="w")
-        self.replacement_entry = ttk.Entry(frame, textvariable=self.replacement_var, width=14)
+        self.replacement_entry = ttk.Entry(
+            frame,
+            textvariable=self.replacement_var,
+            width=14,
+            style="Modern.TEntry",
+        )
         self.replacement_entry.grid(row=1, column=3, pady=3, sticky="ew", ipady=3)
         ToolTip(self.search_entry, "普通模式：输入要查找的原样文本。正则模式：输入 Python 正则表达式。不能为空。")
         ToolTip(self.replacement_entry, "可留空，表示删除匹配内容。正则模式可使用 \\1 或 \\g<名称> 引用捕获组。")
@@ -569,6 +698,7 @@ class BatchRenameApp:
             width=6,
             textvariable=self.preview_limit_var,
             command=self._render_preview,
+            style="Modern.TSpinbox",
         )
         preview_spin.grid(row=0, column=4)
         ttk.Label(frame, text="条").grid(row=0, column=5, padx=(4, 0))
@@ -622,8 +752,18 @@ class BatchRenameApp:
                 minwidth=52 if column == "kind" else 72,
                 stretch=column in {"old", "new", "parent", "detail"},
             )
-        ybar = ttk.Scrollbar(parent, orient="vertical", command=tree.yview)
-        xbar = AutoHideScrollbar(parent, orient="horizontal", command=tree.xview)
+        ybar = ttk.Scrollbar(
+            parent,
+            orient="vertical",
+            command=tree.yview,
+            style="Modern.Vertical.TScrollbar",
+        )
+        xbar = AutoHideScrollbar(
+            parent,
+            orient="horizontal",
+            command=tree.xview,
+            style="Modern.Horizontal.TScrollbar",
+        )
         tree.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
         tree.grid(row=1, column=0, sticky="nsew")
         ybar.grid(row=1, column=1, sticky="ns")
@@ -645,7 +785,13 @@ class BatchRenameApp:
         ttk.Label(frame, textvariable=self.progress_text_var, width=42).grid(row=0, column=1, sticky="e")
         self.details_button = ttk.Button(frame, text="结果详情", style="Secondary.TButton", command=self._show_execution_details, state="disabled")
         self.details_button.grid(row=0, column=2, padx=(8, 0))
-        status = ttk.Label(self.root, textvariable=self.status_var, relief="sunken", anchor="w", padding=(8, 2))
+        status = ttk.Label(
+            self.root,
+            textvariable=self.status_var,
+            style="Status.TLabel",
+            anchor="w",
+            padding=(8, 2),
+        )
         status.pack(fill="x", side="bottom")
         ToolTip(status, "状态栏会提示当前结果和建议的下一步操作。")
 
