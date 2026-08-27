@@ -274,9 +274,11 @@ class BatchRenameApp:
         self.rename_extension_var = tk.BooleanVar(value=False)
         self.include_dirs_var = tk.BooleanVar(value=True)
         self.include_files_var = tk.BooleanVar(value=True)
-        self.preview_limit_var = tk.IntVar(value=10)
+        self.preview_limit_var = tk.IntVar(value=100)
         self.rule_feedback_var = tk.StringVar(value="请输入查找内容；普通模式按原样匹配文本。")
-        self.stats_var = tk.StringVar(value="尚未扫描")
+        self.stats_var = tk.StringVar(
+            value="匹配：0 项 | 可修改：0 项 | 名称未变化：0 项 | 阻止执行：0 项"
+        )
         self.status_var = tk.StringVar(value="请设置目录和规则，然后点击“扫描匹配”。")
         self.progress_text_var = tk.StringVar(value="等待操作")
 
@@ -569,8 +571,9 @@ class BatchRenameApp:
 
         settings = ttk.Frame(outer, style="App.TFrame")
         settings.grid(row=1, column=0, sticky="ew", pady=(0, 5))
-        settings.columnconfigure(0, weight=1, uniform="settings")
-        settings.columnconfigure(1, weight=1, uniform="settings")
+        settings.columnconfigure(0, weight=35)
+        settings.columnconfigure(1, weight=65)
+        self.settings_frame = settings
         self._build_scope_frame(settings)
         self._build_rule_frame(settings)
         self._build_actions_frame(outer)
@@ -717,12 +720,12 @@ class BatchRenameApp:
         self.scan_button.grid(row=0, column=0, padx=(0, 8))
         self.execute_button = ttk.Button(frame, text="确认并重命名", style="Secondary.TButton", command=self._confirm_execute, state="disabled")
         self.execute_button.grid(row=0, column=1, padx=(0, 14))
-        ttk.Label(
+        self.stats_label = ttk.Label(
             frame,
             textvariable=self.stats_var,
             style="Stats.TLabel",
-            wraplength=500,
-        ).grid(row=0, column=2, sticky="w")
+        )
+        self.stats_label.grid(row=0, column=2, sticky="w")
         ttk.Label(frame, text="预览上限：").grid(row=0, column=3, padx=(8, 4))
         preview_spin = ttk.Spinbox(
             frame,

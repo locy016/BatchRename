@@ -161,6 +161,19 @@ def test_default_layout_fits_960_by_680_and_expands_the_result_area(tk_window):
     assert app.result_card.grid_rowconfigure(1)["weight"] > 0
 
 
+def test_settings_use_35_65_split_and_complete_single_line_statistics(tk_window):
+    app = BatchRenameApp(tk_window)
+
+    assert app.settings_frame.grid_columnconfigure(0)["weight"] == 35
+    assert app.settings_frame.grid_columnconfigure(1)["weight"] == 65
+    assert not app.settings_frame.grid_columnconfigure(0)["uniform"]
+    assert app.preview_limit_var.get() == 100
+    assert app.stats_var.get() == (
+        "匹配：0 项 | 可修改：0 项 | 名称未变化：0 项 | 阻止执行：0 项"
+    )
+    assert not app.stats_label.cget("wraplength")
+
+
 def test_search_and_replacement_inputs_stay_on_one_row(tk_window):
     app = BatchRenameApp(tk_window)
 
