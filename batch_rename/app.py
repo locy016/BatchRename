@@ -12,6 +12,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Iterable
 
 from .core import RenameRule, RuleError, ScanError, execute, scan
+from .examples import REGEX_EXAMPLES, RegexExample
 from .models import (
     CandidateStatus,
     ExecutionRecord,
@@ -278,11 +279,16 @@ class BatchRenameApp:
             variable=self.rename_extension_var,
         )
         extension.pack(side="left")
-        self._input_widgets.extend([search_entry, replace_entry, regex, dirs, files, extension])
+        examples_button = ttk.Button(options, text="正则示例…", command=self._show_regex_examples)
+        examples_button.pack(side="right")
+        self._input_widgets.extend(
+            [search_entry, replace_entry, regex, dirs, files, extension, examples_button]
+        )
         ToolTip(regex, "关闭时按普通文本查找；开启后使用 Python 正则语法，例如 (\\d{4})-(\\d{2})。")
         ToolTip(dirs, "勾选后，名称匹配的子文件夹会进入预览。")
         ToolTip(files, "勾选后，名称匹配的文件会进入预览。")
         ToolTip(extension, "默认保护最后一个扩展名。例如查找 jpg 不会改变照片.jpg；开启后才会处理整个文件名。")
+        ToolTip(examples_button, "查看可直接套用的日期、序号、标签删除和片段交换示例。")
 
         self.rule_feedback_label = ttk.Label(frame, textvariable=self.rule_feedback_var, style="Hint.TLabel")
         self.rule_feedback_label.grid(row=2, column=0, columnspan=4, sticky="w", padx=10, pady=(0, 8))
@@ -684,6 +690,97 @@ class BatchRenameApp:
             )
         text.configure(state="disabled")
         xbar.pack(side="bottom", fill="x")
+
+    def _apply_regex_example(
+        self, example: RegexExample, window: tk.Toplevel | None = None
+    ) -> None:
+        self.search_var.set(example.search)
+        self.replacement_var.set(example.replacement)
+        self.regex_var.set(True)
+        self.status_var.set(f"已应用正则示例：{example.title}。请按实际名称调整后扫描预览。")
+        if window is not None:
+            window.destroy()
+
+    def _show_regex_examples(self) -> None:
+        window = tk.Toplevel(self.root)
+        window.title("正则表达式示例")
+        window.geometry("900x540")
+        window.minsize(760, 460)
+        window.transient(self.root)
+        window.grab_set()
+
+        outer = ttk.Frame(window, padding=16)
+        outer.pack(fill="both", expand=True)
+        outer.columnconfigure(1, weight=1)
+        outer.rowconfigure(2, weight=1)
+        ttk.Label(outer, text="从可运行的示例开始", style="Title.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w"
+        )
+        ttk.Label(
+            outer,
+            text="选择示例查看表达式、捕获组和实际结果；应用后仍可按自己的文件名修改。",
+            style="Subtitle.TLabel",
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(3, 12))
+
+        titles = tk.StringVar(value=[example.title for example in REGEX_EXAMPLES])
+        selector = tk.Listbox(
+            outer,
+            listvariable=titles,
+            exportselection=False,
+            activestyle="none",
+            font=("Microsoft YaHei UI", 10),
+            width=20,
+        )
+        selector.grid(row=2, column=0, sticky="ns", padx=(0, 14))
+
+        details = ttk.LabelFrame(outer, text="示例详情", padding=14)
+        details.grid(row=2, column=1, sticky="nsew")
+        details.columnconfigure(1, weight=1)
+        purpose_var = tk.StringVar()
+        search_var = tk.StringVar()
+        replacement_var = tk.StringVar()
+        before_var = tk.StringVar()
+        after_var = tk.StringVar()
+        fields = (
+            ("用途", purpose_var),
+            ("查找表达式", search_var),
+            ("替换内容", replacement_var),
+            ("原名称", before_var),
+            ("结果", after_var),
+        )
+        for row, (label, variable) in enumerate(fields):
+            ttk.Label(details, text=f"{label}：").grid(row=row, column=0, sticky="nw", pady=6)
+            ttk.Label(
+                details,
+                textvariable=variable,
+                wraplength=560,
+                font=("Consolas", 10) if row in {1, 2} else None,
+            ).grid(row=row, column=1, sticky="nw", pady=6)
+        ttk.Label(
+            details,
+            text="提示：\\1 表示第一个括号捕获的内容，\\2 表示第二个。应用示例不会立即修改文件。",
+            style="Hint.TLabel",
+            wraplength=620,
+        ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(16, 8))
+        apply_button = ttk.Button(details, text="应用此示例", style="Accent.TButton")
+        apply_button.grid(row=6, column=1, sticky="e", pady=(10, 0))
+
+        def show_selected(_event=None) -> None:
+            selection = selector.curselection()
+            index = selection[0] if selection else 0
+            example = REGEX_EXAMPLES[index]
+            purpose_var.set(example.purpose)
+            search_var.set(example.search)
+            replacement_var.set(example.replacement or "（空文本）")
+            before_var.set(example.before)
+            after_var.set(example.after)
+            apply_button.configure(
+                command=lambda selected=example: self._apply_regex_example(selected, window)
+            )
+
+        selector.bind("<<ListboxSelect>>", show_selected)
+        selector.selection_set(0)
+        show_selected()
 
     def _show_help(self) -> None:
         help_text = """使用流程

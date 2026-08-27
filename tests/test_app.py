@@ -3,6 +3,7 @@ import tkinter as tk
 
 import main
 from batch_rename.app import BatchRenameApp, sorted_preview_items, summarize_candidates
+from batch_rename.examples import REGEX_EXAMPLES
 from batch_rename.models import CandidateStatus, ItemKind, RenameCandidate
 
 
@@ -60,5 +61,21 @@ def test_busy_state_locks_every_rule_and_scope_input():
 
         assert app.scan_button.instate(["disabled"])
         assert all(widget.instate(["disabled"]) for widget in app._input_widgets)
+    finally:
+        root.destroy()
+
+
+def test_applying_regex_example_fills_rule_and_enables_regex_mode():
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        app = BatchRenameApp(root)
+        example = REGEX_EXAMPLES[0]
+
+        app._apply_regex_example(example)
+
+        assert app.search_var.get() == example.search
+        assert app.replacement_var.get() == example.replacement
+        assert app.regex_var.get() is True
     finally:
         root.destroy()
