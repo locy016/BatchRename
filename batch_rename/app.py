@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import queue
+import re
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -33,22 +34,40 @@ def partition_preview(
     return directories, files
 
 
+def _natural_name_key(value: str) -> tuple[str | int, ...]:
+    return tuple(
+        int(part) if part.isdigit() else part.casefold()
+        for part in re.split(r"(\d+)", value)
+    )
+
+
+def sorted_preview_items(
+    candidates: Iterable[RenameCandidate], limit: int | None = None
+) -> list[RenameCandidate]:
+    """按文件夹、文件和自然名称顺序返回统一预览。"""
+
+    items = sorted(
+        candidates,
+        key=lambda item: (
+            0 if item.kind is ItemKind.DIRECTORY else 1,
+            _natural_name_key(item.old_name),
+            str(item.source.parent).casefold(),
+        ),
+    )
+    return items if limit is None else items[: max(0, limit)]
+
+
 def summarize_candidates(candidates: Iterable[RenameCandidate]) -> dict[str, int]:
     """返回界面统计所需的分类计数。"""
 
     items = list(candidates)
-    directories = [item for item in items if item.kind is ItemKind.DIRECTORY]
-    files = [item for item in items if item.kind is ItemKind.FILE]
-    directory_ready = sum(item.status is CandidateStatus.READY for item in directories)
-    file_ready = sum(item.status is CandidateStatus.READY for item in files)
-    ready_total = directory_ready + file_ready
+    ready_total = sum(item.status is CandidateStatus.READY for item in items)
+    unchanged_total = sum(item.status is CandidateStatus.UNCHANGED for item in items)
     return {
-        "directory_total": len(directories),
-        "directory_ready": directory_ready,
-        "file_total": len(files),
-        "file_ready": file_ready,
+        "matched_total": len(items),
         "ready_total": ready_total,
-        "skipped_total": len(items) - ready_total,
+        "unchanged_total": unchanged_total,
+        "blocked_total": len(items) - ready_total - unchanged_total,
     }
 
 
@@ -471,18 +490,22 @@ class BatchRenameApp:
         self._last_scan = result
         summary = summarize_candidates(result.candidates)
         self.stats_var.set(
-            f"文件夹：{summary['directory_total']} 项（可改 {summary['directory_ready']}）  |  "
-            f"文件：{summary['file_total']} 项（可改 {summary['file_ready']}）  |  "
-            f"将跳过：{summary['skipped_total']} 项"
+            f"匹配：{summary['matched_total']} 项  |  可修改：{summary['ready_total']} 项  |  "
+            f"名称未变化：{summary['unchanged_total']} 项  |  阻止执行：{summary['blocked_total']} 项"
         )
-        self.progress_text_var.set(f"扫描完成：找到 {len(result.candidates)} 个名称变化")
+        self.progress_text_var.set(f"扫描完成：找到 {summary['matched_total']} 个名称匹配")
         self._render_preview()
         if summary["ready_total"]:
             self.execute_button.configure(state="normal")
             self.status_var.set("预览已生成。请检查新名称和状态，确认无误后点击“执行重命名”。")
         else:
             self.execute_button.configure(state="disabled")
-            self.status_var.set("没有可安全执行的项目；请调整规则，或处理表格中标出的冲突。")
+            if summary["matched_total"]:
+                self.status_var.set(
+                    f"已匹配 {summary['matched_total']} 项，但本次没有可执行动作；请查看状态说明或调整替换内容。"
+                )
+            else:
+                self.status_var.set("没有找到符合搜索条件的名称，请检查目录、层级和查找内容。")
         if result.errors:
             messagebox.showwarning(
                 "扫描完成，但有提示",
@@ -527,14 +550,20 @@ class BatchRenameApp:
             messagebox.showinfo("没有可执行项目", "当前预览中没有状态为“可修改”的项目。", parent=self.root)
             return
         depth_text = "全部层级" if self.depth_mode_var.get() == "all" else f"最多 {self.depth_var.get()} 层"
+        directory_ready = sum(
+            item.status is CandidateStatus.READY and item.kind is ItemKind.DIRECTORY
+            for item in self._last_scan.candidates
+        )
+        file_ready = summary["ready_total"] - directory_ready
         confirmed = messagebox.askyesno(
             "确认一次性执行重命名",
             "即将修改磁盘上的名称，请再次核对：\n\n"
             f"根目录：{self._last_scan.root}\n"
             f"扫描范围：{depth_text}（根目录本身不修改）\n"
             f"可执行：{summary['ready_total']} 项\n"
-            f"其中：文件夹 {summary['directory_ready']} 项，文件 {summary['file_ready']} 项\n"
-            f"因冲突或规则问题跳过：{summary['skipped_total']} 项\n\n"
+            f"其中：文件夹 {directory_ready} 项，文件 {file_ready} 项\n"
+            f"名称未变化：{summary['unchanged_total']} 项\n"
+            f"因冲突或规则问题阻止：{summary['blocked_total']} 项\n\n"
             "执行后不能在本工具中自动撤销。是否继续？",
             icon="warning",
             parent=self.root,
