@@ -644,33 +644,40 @@ class BatchRenameApp:
         frame.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
         self.rule_card = frame
         frame.columnconfigure(1, weight=1)
-        frame.columnconfigure(3, weight=1)
-        ttk.Label(frame, text="重命名规则", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
+        frame.columnconfigure(4, weight=1)
+        ttk.Label(frame, text="重命名规则", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
         self.regex_templates_button = ttk.Button(
             frame,
             text="正则模板",
             style="Secondary.TButton",
             command=self._show_regex_examples,
         )
-        self.regex_templates_button.grid(row=0, column=3, sticky="e", pady=(0, 5))
+        self.regex_templates_button.grid(row=0, column=4, sticky="e", pady=(0, 5))
         ttk.Label(frame, text="查找", style="Card.TLabel").grid(row=1, column=0, padx=(0, 8), pady=4, sticky="w")
         self.search_entry = ttk.Entry(
             frame, textvariable=self.search_var, width=14, style="Modern.TEntry"
         )
-        self.search_entry.grid(row=1, column=1, padx=(0, 9), pady=3, sticky="ew", ipady=3)
-        ttk.Label(frame, text="替换", style="Card.TLabel").grid(row=1, column=2, padx=(0, 8), pady=3, sticky="w")
+        self.search_entry.grid(row=1, column=1, padx=(0, 5), pady=3, sticky="ew", ipady=3)
+        self.search_scan_button = ttk.Button(
+            frame,
+            text="扫描",
+            style="Secondary.TButton",
+            command=self._start_scan,
+        )
+        self.search_scan_button.grid(row=1, column=2, padx=(0, 9), pady=3)
+        ttk.Label(frame, text="替换", style="Card.TLabel").grid(row=1, column=3, padx=(0, 8), pady=3, sticky="w")
         self.replacement_entry = ttk.Entry(
             frame,
             textvariable=self.replacement_var,
             width=14,
             style="Modern.TEntry",
         )
-        self.replacement_entry.grid(row=1, column=3, pady=3, sticky="ew", ipady=3)
+        self.replacement_entry.grid(row=1, column=4, pady=3, sticky="ew", ipady=3)
         ToolTip(self.search_entry, "普通模式：输入要查找的原样文本。正则模式：输入 Python 正则表达式。不能为空。")
         ToolTip(self.replacement_entry, "可留空，表示删除匹配内容。正则模式可使用 \\1 或 \\g<名称> 引用捕获组。")
 
         options = ttk.Frame(frame, style="Card.TFrame")
-        options.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(4, 1))
+        options.grid(row=2, column=0, columnspan=5, sticky="ew", pady=(4, 1))
         regex = ttk.Checkbutton(options, text="正则表达式", variable=self.regex_var, style="Card.TCheckbutton")
         regex.pack(side="left", padx=(0, 12))
         dirs = ttk.Checkbutton(options, text="文件夹", variable=self.include_dirs_var, style="Card.TCheckbutton")
@@ -687,6 +694,7 @@ class BatchRenameApp:
         self._input_widgets.extend(
             [
                 self.search_entry,
+                self.search_scan_button,
                 self.replacement_entry,
                 regex,
                 dirs,
@@ -703,6 +711,10 @@ class BatchRenameApp:
             self.regex_templates_button,
             "按用途选择经过验证的常用正则规则，查看处理前后效果并一键填入主窗口。",
         )
+        ToolTip(
+            self.search_scan_button,
+            "使用当前全部规则生成结果预览；在查找框按 Enter 也可执行相同操作。",
+        )
 
         self.rule_feedback_label = ttk.Label(
             frame,
@@ -710,13 +722,13 @@ class BatchRenameApp:
             style="Hint.TLabel",
             wraplength=900,
         )
-        self.rule_feedback_label.grid(row=3, column=0, columnspan=4, sticky="w", pady=(3, 0))
+        self.rule_feedback_label.grid(row=3, column=0, columnspan=5, sticky="w", pady=(3, 0))
 
     def _build_actions_frame(self, parent: ttk.Frame) -> None:
         frame = ttk.Frame(parent, style="Card.TFrame", padding=(8, 5))
         frame.grid(row=2, column=0, sticky="ew", pady=(0, 5))
         frame.columnconfigure(2, weight=1)
-        self.scan_button = ttk.Button(frame, text="扫描匹配", style="Accent.TButton", command=self._start_scan)
+        self.scan_button = ttk.Button(frame, text="结果预览", style="Accent.TButton", command=self._start_scan)
         self.scan_button.grid(row=0, column=0, padx=(0, 8))
         self.execute_button = ttk.Button(frame, text="确认并重命名", style="Secondary.TButton", command=self._confirm_execute, state="disabled")
         self.execute_button.grid(row=0, column=1, padx=(0, 14))
@@ -846,6 +858,11 @@ class BatchRenameApp:
         for variable in variables:
             variable.trace_add("write", self._on_input_changed)
         self.preview_limit_var.trace_add("write", lambda *_: self._render_preview())
+        self.search_entry.bind("<Return>", self._preview_from_search)
+
+    def _preview_from_search(self, _event=None) -> str:
+        self._start_scan()
+        return "break"
 
     def _on_input_changed(self, *_args) -> None:
         if self._last_scan is not None and not self._busy:

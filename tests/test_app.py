@@ -85,6 +85,27 @@ def test_busy_state_locks_every_rule_and_scope_input(tk_window):
 
     assert app.scan_button.instate(["disabled"])
     assert all(widget.instate(["disabled"]) for widget in app._input_widgets)
+    assert app.search_scan_button.instate(["disabled"])
+
+
+def test_search_scan_button_and_enter_share_the_preview_action(tk_window, monkeypatch):
+    calls = []
+    monkeypatch.setattr(BatchRenameApp, "_start_scan", lambda self: calls.append("scan"))
+    app = BatchRenameApp(tk_window)
+
+    assert app.search_scan_button.cget("text") == "扫描"
+    assert app.scan_button.cget("text") == "结果预览"
+
+    app.search_scan_button.invoke()
+    assert calls == ["scan"]
+
+    tk_window.deiconify()
+    tk_window.update()
+    app.search_entry.focus_force()
+    tk_window.update()
+    app.search_entry.event_generate("<Return>")
+    tk_window.update()
+    assert calls == ["scan", "scan"]
 
 
 def test_applying_regex_example_fills_rule_and_enables_regex_mode(tk_window):
