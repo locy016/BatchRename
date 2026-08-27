@@ -193,6 +193,24 @@ def test_result_table_values_follow_the_visible_column_order(tk_window):
     )
 
 
+def test_new_name_column_uses_a_dedicated_accent_text_overlay(tk_window):
+    app = BatchRenameApp(tk_window)
+    tk_window.deiconify()
+    tk_window.update()
+
+    app._fill_tree(app.result_tree, [candidate("文件2.txt", ItemKind.FILE)])
+    tk_window.update()
+
+    visible_labels = app.new_name_overlay.visible_labels
+    assert len(visible_labels) == 1
+    assert visible_labels[0].cget("text") == "新-文件2.txt"
+    assert visible_labels[0].cget("foreground") == app.COLORS["accent"]
+
+    app._fill_tree(app.result_tree, [])
+    tk_window.update()
+    assert app.new_name_overlay.visible_labels == ()
+
+
 def test_default_layout_fits_960_by_680_and_expands_the_result_area(tk_window):
     app = BatchRenameApp(tk_window)
     tk_window.update_idletasks()

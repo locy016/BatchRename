@@ -238,6 +238,112 @@ class ToolTip:
             self.window = None
 
 
+class TreeColumnTextOverlay:
+    """仅覆盖 Treeview 的一个可见文本列，以支持单列强调色。"""
+
+    def __init__(
+        self,
+        tree: ttk.Treeview,
+        column: str,
+        *,
+        foreground: str,
+        background: str,
+        selected_background: str,
+    ) -> None:
+        self.tree = tree
+        self.column = column
+        self.foreground = foreground
+        self.background = background
+        self.selected_background = selected_background
+        self._labels: list[tk.Label] = []
+        self._tooltips: list[ToolTip] = []
+        self._refresh_id: str | None = None
+        self.tree.bind("<Configure>", self.schedule, add="+")
+        self.tree.bind("<Expose>", self.schedule, add="+")
+        self.tree.bind("<<TreeviewSelect>>", self.schedule, add="+")
+        self.tree.bind("<MouseWheel>", self.schedule, add="+")
+        self.tree.bind("<Button-4>", self.schedule, add="+")
+        self.tree.bind("<Button-5>", self.schedule, add="+")
+
+    @property
+    def visible_labels(self) -> tuple[tk.Label, ...]:
+        return tuple(label for label in self._labels if label.winfo_manager() == "place")
+
+    def schedule(self, _event=None) -> None:
+        if self._refresh_id is None and self.tree.winfo_exists():
+            self._refresh_id = self.tree.after_idle(self.refresh)
+
+    def refresh(self) -> None:
+        self._refresh_id = None
+        if not self.tree.winfo_exists() or not self.tree.winfo_ismapped():
+            self._hide_from(0)
+            return
+        selection = set(self.tree.selection())
+        visible_index = 0
+        for item_id in self.tree.get_children(""):
+            bounds = self.tree.bbox(item_id, self.column)
+            if not bounds:
+                continue
+            x, y, width, height = bounds
+            if width <= 2 or height <= 2:
+                continue
+            label, tooltip = self._label_at(visible_index)
+            text = self.tree.set(item_id, self.column)
+            label.configure(
+                text=text,
+                background=(
+                    self.selected_background if item_id in selection else self.background
+                ),
+            )
+            label._tree_item_id = item_id  # type: ignore[attr-defined]
+            tooltip.text = f"新名称\n{text}"
+            label.place(x=x + 1, y=y + 1, width=width - 2, height=height - 2)
+            label.lift()
+            visible_index += 1
+        self._hide_from(visible_index)
+
+    def _label_at(self, index: int) -> tuple[tk.Label, ToolTip]:
+        if index == len(self._labels):
+            style_font = ttk.Style(self.tree).lookup("Treeview", "font")
+            label = tk.Label(
+                self.tree,
+                anchor="w",
+                padx=6,
+                borderwidth=0,
+                background=self.background,
+                foreground=self.foreground,
+                font=style_font or ("Microsoft YaHei UI", 9),
+            )
+            label.bind("<Button-1>", lambda _event, item=label: self._select(item))
+            label.bind("<MouseWheel>", self._scroll, add="+")
+            label.bind("<Button-4>", lambda _event: self._scroll_lines(-1), add="+")
+            label.bind("<Button-5>", lambda _event: self._scroll_lines(1), add="+")
+            self._labels.append(label)
+            self._tooltips.append(ToolTip(label, ""))
+        return self._labels[index], self._tooltips[index]
+
+    def _select(self, label: tk.Label) -> None:
+        item_id = getattr(label, "_tree_item_id", "")
+        if item_id:
+            self.tree.selection_set(item_id)
+            self.tree.focus(item_id)
+
+    def _scroll(self, event: tk.Event) -> str:
+        delta = getattr(event, "delta", 0)
+        if delta:
+            self._scroll_lines(-1 if delta > 0 else 1)
+        return "break"
+
+    def _scroll_lines(self, lines: int) -> str:
+        self.tree.yview_scroll(lines, "units")
+        self.schedule()
+        return "break"
+
+    def _hide_from(self, index: int) -> None:
+        for label in self._labels[index:]:
+            label.place_forget()
+
+
 class BatchRenameApp:
     """批量重命名主窗口。"""
 
@@ -807,16 +913,32 @@ class BatchRenameApp:
                 minwidth=52 if column == "kind" else 72,
                 stretch=column in {"old", "new", "parent", "detail"},
             )
+        self.new_name_overlay = TreeColumnTextOverlay(
+            tree,
+            "new",
+            foreground=self.COLORS["accent"],
+            background=self.COLORS["card"],
+            selected_background="#D9EAF2",
+        )
+
+        def scroll_vertical(*args: str) -> None:
+            tree.yview(*args)
+            self.new_name_overlay.schedule()
+
+        def scroll_horizontal(*args: str) -> None:
+            tree.xview(*args)
+            self.new_name_overlay.schedule()
+
         ybar = ttk.Scrollbar(
             parent,
             orient="vertical",
-            command=tree.yview,
+            command=scroll_vertical,
             style="Modern.Vertical.TScrollbar",
         )
         xbar = AutoHideScrollbar(
             parent,
             orient="horizontal",
-            command=tree.xview,
+            command=scroll_horizontal,
             style="Modern.Horizontal.TScrollbar",
         )
         tree.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
@@ -1012,8 +1134,9 @@ class BatchRenameApp:
         items = self._last_scan.candidates if self._last_scan is not None else []
         self._fill_tree(self.result_tree, sorted_preview_items(items, limit))
 
-    @staticmethod
-    def _fill_tree(tree: ttk.Treeview, items: Iterable[RenameCandidate]) -> None:
+    def _fill_tree(
+        self, tree: ttk.Treeview, items: Iterable[RenameCandidate]
+    ) -> None:
         tree.delete(*tree.get_children())
         for item in items:
             if item.status is CandidateStatus.READY:
@@ -1035,6 +1158,8 @@ class BatchRenameApp:
                 ),
                 tags=(tag,),
             )
+        if tree is self.result_tree:
+            self.new_name_overlay.schedule()
 
     def _confirm_execute(self) -> None:
         if self._busy or self._last_scan is None:
