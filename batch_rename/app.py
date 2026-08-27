@@ -10,7 +10,7 @@ import threading
 import tkinter as tk
 import ctypes
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, font as tkfont, messagebox, ttk
 from typing import Iterable
 
 from .core import RenameRule, RuleError, ScanError, execute, scan
@@ -61,6 +61,112 @@ def summarize_candidates(candidates: Iterable[RenameCandidate]) -> dict[str, int
         "unchanged_total": unchanged_total,
         "blocked_total": len(items) - ready_total - unchanged_total,
     }
+
+
+class AutoHideScrollbar(ttk.Scrollbar):
+    """内容完全可见时释放网格空间的滚动条。"""
+
+    def set(self, first: str, last: str) -> None:
+        if float(first) <= 0.0 and float(last) >= 1.0:
+            if self.winfo_manager():
+                self.grid_remove()
+        elif not self.winfo_manager():
+            self.grid()
+        super().set(first, last)
+
+
+def _tree_cell_content(
+    tree: ttk.Treeview, row_id: str, column_id: str
+) -> tuple[str, str] | None:
+    """返回结果表单元格的标题与完整文本。"""
+
+    if not row_id or not column_id.startswith("#"):
+        return None
+    try:
+        index = int(column_id[1:]) - 1
+    except ValueError:
+        return None
+    columns = tree["columns"]
+    if index < 0 or index >= len(columns):
+        return None
+    values = tree.item(row_id, "values")
+    if index >= len(values):
+        return None
+    text = str(values[index])
+    if not text:
+        return None
+    heading = str(tree.heading(columns[index], "text"))
+    return heading, text
+
+
+class TreeCellToolTip:
+    """在结果单元格被截短时显示完整内容。"""
+
+    def __init__(self, tree: ttk.Treeview) -> None:
+        self.tree = tree
+        self.window: tk.Toplevel | None = None
+        self.after_id: str | None = None
+        self.cell: tuple[str, str] | None = None
+        self.pointer = (0, 0)
+        tree.bind("<Motion>", self._on_motion, add="+")
+        tree.bind("<Leave>", self.hide, add="+")
+        tree.bind("<ButtonPress>", self.hide, add="+")
+        tree.bind("<MouseWheel>", self.hide, add="+")
+        tree.bind("<Button-4>", self.hide, add="+")
+        tree.bind("<Button-5>", self.hide, add="+")
+
+    def _on_motion(self, event: tk.Event) -> None:
+        row_id = self.tree.identify_row(event.y)
+        column_id = self.tree.identify_column(event.x)
+        cell = (row_id, column_id)
+        if cell == self.cell:
+            return
+        self.hide()
+        self.cell = cell
+        self.pointer = (event.x_root, event.y_root)
+        content = _tree_cell_content(self.tree, row_id, column_id)
+        if content is None or not self._is_truncated(row_id, column_id, content[1]):
+            return
+        self.after_id = self.tree.after(350, lambda: self._show(content))
+
+    def _is_truncated(self, row_id: str, column_id: str, text: str) -> bool:
+        bounds = self.tree.bbox(row_id, column_id)
+        visible_width = bounds[2] if bounds else int(self.tree.column(column_id, "width"))
+        style_font = ttk.Style(self.tree).lookup("Treeview", "font")
+        font = tkfont.Font(self.tree, font=style_font) if style_font else tkfont.nametofont("TkDefaultFont")
+        return font.measure(text) + 18 > visible_width
+
+    def _show(self, content: tuple[str, str]) -> None:
+        self.after_id = None
+        if self.window is not None or not self.tree.winfo_exists():
+            return
+        heading, value = content
+        x, y = self.pointer
+        self.window = tk.Toplevel(self.tree)
+        self.window.wm_overrideredirect(True)
+        label = tk.Label(
+            self.window,
+            text=f"{heading}\n{value}",
+            justify="left",
+            background="#F7FBFD",
+            foreground="#1D2A35",
+            relief="solid",
+            borderwidth=1,
+            padx=10,
+            pady=7,
+            wraplength=620,
+        )
+        label.pack()
+        self.window.wm_geometry(f"+{x + 14}+{y + 18}")
+
+    def hide(self, _event=None) -> None:
+        if self.after_id is not None:
+            self.tree.after_cancel(self.after_id)
+            self.after_id = None
+        if self.window is not None:
+            self.window.destroy()
+            self.window = None
+        self.cell = None
 
 
 class ToolTip:
@@ -517,7 +623,7 @@ class BatchRenameApp:
                 stretch=column in {"old", "new", "parent", "detail"},
             )
         ybar = ttk.Scrollbar(parent, orient="vertical", command=tree.yview)
-        xbar = ttk.Scrollbar(parent, orient="horizontal", command=tree.xview)
+        xbar = AutoHideScrollbar(parent, orient="horizontal", command=tree.xview)
         tree.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
         tree.grid(row=1, column=0, sticky="nsew")
         ybar.grid(row=1, column=1, sticky="ns")
@@ -525,7 +631,9 @@ class BatchRenameApp:
         tree.tag_configure("blocked", foreground="#9b2c2c")
         tree.tag_configure("ready", foreground="#176b34")
         tree.tag_configure("unchanged", foreground=self.COLORS["warning"])
-        ToolTip(tree, "双击或横向滚动可查看长路径。红色项目会被跳过，绿色项目将在确认后执行。")
+        self.result_scrollbar = ybar
+        self.result_horizontal_scrollbar = xbar
+        self.result_cell_tooltip = TreeCellToolTip(tree)
         return tree
 
     def _build_progress_frame(self, parent: ttk.Frame) -> None:

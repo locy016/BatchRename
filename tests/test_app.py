@@ -1,8 +1,15 @@
 from pathlib import Path
 import tkinter as tk
+from tkinter import ttk
 
 import main
-from batch_rename.app import BatchRenameApp, sorted_preview_items, summarize_candidates
+from batch_rename.app import (
+    AutoHideScrollbar,
+    BatchRenameApp,
+    _tree_cell_content,
+    sorted_preview_items,
+    summarize_candidates,
+)
 from batch_rename.examples import REGEX_EXAMPLES
 from batch_rename.models import CandidateStatus, ItemKind, RenameCandidate
 
@@ -122,6 +129,43 @@ def test_search_and_replacement_inputs_stay_on_one_row():
 
         assert app.search_entry.grid_info()["row"] == app.replacement_entry.grid_info()["row"]
         assert app.search_entry.grid_info()["column"] < app.replacement_entry.grid_info()["column"]
+    finally:
+        root.destroy()
+
+
+def test_horizontal_scrollbar_hides_when_everything_is_visible():
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        frame = tk.Frame(root)
+        frame.grid()
+        scrollbar = AutoHideScrollbar(frame, orient="horizontal")
+        scrollbar.grid(row=1, column=0, sticky="ew")
+
+        scrollbar.set("0.0", "1.0")
+        assert scrollbar.winfo_manager() == ""
+
+        scrollbar.set("0.0", "0.5")
+        assert scrollbar.winfo_manager() == "grid"
+    finally:
+        root.destroy()
+
+
+def test_tree_cell_content_returns_heading_and_full_value():
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        tree = ttk.Treeview(root, columns=("kind", "parent"), show="headings")
+        tree.heading("kind", text="类型")
+        tree.heading("parent", text="所在目录")
+        row = tree.insert("", "end", values=("文件", "C:/这是一个很长的完整目录/子目录"))
+
+        assert _tree_cell_content(tree, row, "#2") == (
+            "所在目录",
+            "C:/这是一个很长的完整目录/子目录",
+        )
+        assert _tree_cell_content(tree, "", "#2") is None
+        assert _tree_cell_content(tree, row, "#0") is None
     finally:
         root.destroy()
 
