@@ -100,6 +100,13 @@ class RenameRule:
             renamed = target_text.replace(self.search, self.replacement)
         return renamed + suffix
 
+    def matches(self, name: str) -> bool:
+        """判断完整名称是否符合搜索条件，不受扩展名保护影响。"""
+
+        if self._pattern is not None:
+            return self._pattern.search(name) is not None
+        return self.search in name
+
 
 def _path_key(path: Path) -> str:
     return os.path.normcase(os.path.abspath(path))
@@ -156,8 +163,25 @@ def scan(options: ScanOptions) -> ScanResult:
             if not selected:
                 continue
 
+            if not rule.matches(entry.name):
+                continue
+
             new_name = rule.rename(entry.name, is_file=is_file)
             if new_name == entry.name:
+                detail = "名称符合搜索条件，但替换后没有变化"
+                if is_file and not options.rename_extension:
+                    stem, _suffix = os.path.splitext(entry.name)
+                    if not rule.matches(stem):
+                        detail = "搜索内容位于受保护的文件扩展名中，因此名称没有变化"
+                result.candidates.append(
+                    RenameCandidate(
+                        source=source,
+                        target=source,
+                        kind=ItemKind.DIRECTORY if is_dir else ItemKind.FILE,
+                        status=CandidateStatus.UNCHANGED,
+                        detail=detail,
+                    )
+                )
                 continue
             target = source.with_name(new_name)
             invalid_reason = validate_windows_name(new_name)

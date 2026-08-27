@@ -100,3 +100,26 @@ def test_depth_must_be_positive(max_depth, tmp_path):
 def test_root_must_be_an_existing_directory(tmp_path):
     with pytest.raises(ScanError, match="不存在或不是文件夹"):
         scan(ScanOptions(tmp_path / "missing", "旧", "新"))
+
+
+def test_same_replacement_still_lists_matching_name(tmp_path):
+    source = touch(tmp_path / "众川合同.docx")
+
+    result = scan(ScanOptions(tmp_path, "众川", "众川"))
+
+    assert len(result.candidates) == 1
+    assert result.candidates[0].source == source
+    assert result.candidates[0].status is CandidateStatus.UNCHANGED
+    assert "没有变化" in result.candidates[0].detail
+    assert result.ready == []
+
+
+def test_match_in_protected_extension_is_listed_as_unchanged(tmp_path):
+    source = touch(tmp_path / "照片.jpg")
+
+    result = scan(ScanOptions(tmp_path, "jpg", "png"))
+
+    assert len(result.candidates) == 1
+    assert result.candidates[0].source == source
+    assert result.candidates[0].status is CandidateStatus.UNCHANGED
+    assert "扩展名" in result.candidates[0].detail
