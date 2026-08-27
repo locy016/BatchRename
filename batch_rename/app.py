@@ -7,6 +7,7 @@ import queue
 import re
 import threading
 import tkinter as tk
+import ctypes
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Iterable
@@ -22,17 +23,6 @@ from .models import (
     ScanOptions,
     ScanResult,
 )
-
-
-def partition_preview(
-    candidates: Iterable[RenameCandidate], limit: int
-) -> tuple[list[RenameCandidate], list[RenameCandidate]]:
-    """分别截取文件夹和文件预览，互不占用对方限额。"""
-
-    items = list(candidates)
-    directories = [item for item in items if item.kind is ItemKind.DIRECTORY][:limit]
-    files = [item for item in items if item.kind is ItemKind.FILE][:limit]
-    return directories, files
 
 
 def _natural_name_key(value: str) -> tuple[str | int, ...]:
@@ -126,12 +116,27 @@ class BatchRenameApp:
     """批量重命名主窗口。"""
 
     POLL_INTERVAL_MS = 80
+    COLORS = {
+        "background": "#F3F6FA",
+        "card": "#FFFFFF",
+        "navy": "#17324D",
+        "navy_soft": "#284B6B",
+        "accent": "#0F8B8D",
+        "accent_hover": "#0B7476",
+        "text": "#1D2A35",
+        "muted": "#657482",
+        "border": "#DCE4EB",
+        "ready": "#177245",
+        "warning": "#A76500",
+        "blocked": "#A53A3A",
+    }
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("批量重命名工具")
-        self.root.geometry("1180x800")
-        self.root.minsize(940, 680)
+        self.root.geometry("1240x820")
+        self.root.minsize(1000, 700)
+        self.root.configure(background=self.COLORS["background"])
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self.directory_var = tk.StringVar(value=os.getcwd())
@@ -163,53 +168,167 @@ class BatchRenameApp:
 
     def _configure_style(self) -> None:
         style = ttk.Style(self.root)
-        if "vista" in style.theme_names():
-            style.theme_use("vista")
-        style.configure("Title.TLabel", font=("Microsoft YaHei UI", 17, "bold"))
-        style.configure("Subtitle.TLabel", foreground="#555555")
-        style.configure("Section.TLabelframe.Label", font=("Microsoft YaHei UI", 10, "bold"))
-        style.configure("Hint.TLabel", foreground="#666666")
-        style.configure("Stats.TLabel", font=("Microsoft YaHei UI", 10, "bold"), foreground="#174a7e")
-        style.configure("Accent.TButton", font=("Microsoft YaHei UI", 10, "bold"))
-        style.configure("Treeview", rowheight=25)
+        if "clam" in style.theme_names():
+            style.theme_use("clam")
+        colors = self.COLORS
+        style.configure("TFrame", background=colors["background"])
+        style.configure("App.TFrame", background=colors["background"])
+        style.configure("Header.TFrame", background=colors["navy"])
+        style.configure("Card.TFrame", background=colors["card"], relief="flat")
+        style.configure(
+            "HeaderTitle.TLabel",
+            background=colors["navy"],
+            foreground="#FFFFFF",
+            font=("Microsoft YaHei UI", 18, "bold"),
+        )
+        style.configure(
+            "HeaderSubtitle.TLabel",
+            background=colors["navy"],
+            foreground="#D7E5F0",
+            font=("Microsoft YaHei UI", 9),
+        )
+        style.configure(
+            "Title.TLabel",
+            background=colors["background"],
+            foreground=colors["navy"],
+            font=("Microsoft YaHei UI", 17, "bold"),
+        )
+        style.configure(
+            "Subtitle.TLabel",
+            background=colors["background"],
+            foreground=colors["muted"],
+        )
+        style.configure(
+            "Icon.TLabel",
+            background=colors["navy_soft"],
+            foreground="#FFFFFF",
+            font=("Microsoft YaHei UI", 20, "bold"),
+            anchor="center",
+        )
+        style.configure(
+            "CardTitle.TLabel",
+            background=colors["card"],
+            foreground=colors["navy"],
+            font=("Microsoft YaHei UI", 11, "bold"),
+        )
+        style.configure(
+            "Card.TLabel",
+            background=colors["card"],
+            foreground=colors["text"],
+            font=("Microsoft YaHei UI", 9),
+        )
+        style.configure(
+            "Hint.TLabel",
+            background=colors["card"],
+            foreground=colors["muted"],
+            font=("Microsoft YaHei UI", 8),
+        )
+        style.configure(
+            "Stats.TLabel",
+            background=colors["card"],
+            foreground=colors["navy"],
+            font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.configure("Card.TCheckbutton", background=colors["card"], foreground=colors["text"])
+        style.map("Card.TCheckbutton", background=[("active", colors["card"])])
+        style.configure("Card.TRadiobutton", background=colors["card"], foreground=colors["text"])
+        style.map("Card.TRadiobutton", background=[("active", colors["card"])])
+        style.configure(
+            "Accent.TButton",
+            background=colors["accent"],
+            foreground="#FFFFFF",
+            borderwidth=0,
+            padding=(18, 9),
+            font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.map(
+            "Accent.TButton",
+            background=[("active", colors["accent_hover"]), ("disabled", "#A9C7C8")],
+            foreground=[("disabled", "#F3F6F6")],
+        )
+        style.configure(
+            "Secondary.TButton",
+            background="#E8EEF4",
+            foreground=colors["navy"],
+            borderwidth=0,
+            padding=(13, 8),
+            font=("Microsoft YaHei UI", 9),
+        )
+        style.map("Secondary.TButton", background=[("active", "#D9E4ED")])
+        style.configure(
+            "Header.TButton",
+            background=colors["navy_soft"],
+            foreground="#FFFFFF",
+            borderwidth=0,
+            padding=(13, 8),
+        )
+        style.map("Header.TButton", background=[("active", "#356384")])
+        style.configure(
+            "Treeview",
+            background="#FFFFFF",
+            fieldbackground="#FFFFFF",
+            foreground=colors["text"],
+            bordercolor=colors["border"],
+            rowheight=30,
+            font=("Microsoft YaHei UI", 9),
+        )
+        style.configure(
+            "Treeview.Heading",
+            background="#EAF0F5",
+            foreground=colors["navy"],
+            relief="flat",
+            font=("Microsoft YaHei UI", 9, "bold"),
+            padding=(8, 7),
+        )
+        style.map("Treeview.Heading", background=[("active", "#DDE7EF")])
+        style.configure("Modern.Horizontal.TProgressbar", troughcolor="#DDE7ED", background=colors["accent"])
 
     def _build_ui(self) -> None:
-        outer = ttk.Frame(self.root, padding=(14, 12, 14, 8))
+        outer = ttk.Frame(self.root, style="App.TFrame", padding=(16, 14, 16, 10))
         outer.pack(fill="both", expand=True)
         outer.columnconfigure(0, weight=1)
-        outer.rowconfigure(4, weight=1)
+        outer.rowconfigure(3, weight=1)
 
-        header = ttk.Frame(outer)
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-        header.columnconfigure(0, weight=1)
-        ttk.Label(header, text="批量重命名工具", style="Title.TLabel").grid(
-            row=0, column=0, sticky="w"
+        header = ttk.Frame(outer, style="Header.TFrame", padding=(18, 13))
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        header.columnconfigure(1, weight=1)
+        self.brand_icon_label = ttk.Label(header, text="↻", style="Icon.TLabel", width=3)
+        self.brand_icon_label.grid(row=0, column=0, rowspan=2, sticky="nsw", padx=(0, 13))
+        ttk.Label(header, text="批量重命名", style="HeaderTitle.TLabel").grid(
+            row=0, column=1, sticky="w"
         )
         ttk.Label(
             header,
-            text="先扫描预览，再确认执行；不会覆盖已有文件或文件夹。",
-            style="Subtitle.TLabel",
-        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
-        help_button = ttk.Button(header, text="使用说明", command=self._show_help)
-        help_button.grid(row=0, column=1, rowspan=2, padx=(10, 0))
+            text="在执行前看清每一个匹配结果，安全整理多层目录中的文件夹与文件。",
+            style="HeaderSubtitle.TLabel",
+        ).grid(row=1, column=1, sticky="w", pady=(2, 0))
+        help_button = ttk.Button(header, text="使用说明", style="Header.TButton", command=self._show_help)
+        help_button.grid(row=0, column=2, rowspan=2, padx=(12, 0))
         ToolTip(help_button, "打开完整说明，包括层级定义、正则示例、冲突策略和安全注意事项。")
 
-        self._build_scope_frame(outer)
-        self._build_rule_frame(outer)
+        settings = ttk.Frame(outer, style="App.TFrame")
+        settings.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        settings.columnconfigure(0, weight=1, uniform="settings")
+        settings.columnconfigure(1, weight=1, uniform="settings")
+        self._build_scope_frame(settings)
+        self._build_rule_frame(settings)
         self._build_actions_frame(outer)
         self._build_preview_frame(outer)
         self._build_progress_frame(outer)
 
     def _build_scope_frame(self, parent: ttk.Frame) -> None:
-        frame = ttk.LabelFrame(parent, text="1. 扫描范围", style="Section.TLabelframe")
-        frame.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        frame = ttk.Frame(parent, style="Card.TFrame", padding=16)
+        frame.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        self.scope_card = frame
         frame.columnconfigure(1, weight=1)
-
-        ttk.Label(frame, text="根目录：").grid(row=0, column=0, padx=(10, 6), pady=(9, 5), sticky="w")
+        ttk.Label(frame, text="扫描范围", style="CardTitle.TLabel").grid(
+            row=0, column=0, columnspan=3, sticky="w", pady=(0, 11)
+        )
+        ttk.Label(frame, text="根目录", style="Card.TLabel").grid(row=1, column=0, padx=(0, 8), pady=5, sticky="w")
         self.directory_entry = ttk.Entry(frame, textvariable=self.directory_var)
-        self.directory_entry.grid(row=0, column=1, padx=0, pady=(9, 5), sticky="ew")
-        browse = ttk.Button(frame, text="选择目录…", command=self._choose_directory)
-        browse.grid(row=0, column=2, padx=8, pady=(9, 5))
+        self.directory_entry.grid(row=1, column=1, padx=0, pady=5, sticky="ew", ipady=4)
+        browse = ttk.Button(frame, text="选择…", style="Secondary.TButton", command=self._choose_directory)
+        browse.grid(row=1, column=2, padx=(8, 0), pady=5)
         ToolTip(
             self.directory_entry,
             "要扫描的起始目录。根目录本身不会被重命名，只处理它内部的文件夹和文件。",
@@ -217,22 +336,24 @@ class BatchRenameApp:
         ToolTip(browse, "从系统目录选择器中选择扫描起点。")
         self._input_widgets.extend([self.directory_entry, browse])
 
-        depth_row = ttk.Frame(frame)
-        depth_row.grid(row=1, column=0, columnspan=3, sticky="ew", padx=10, pady=(2, 5))
-        ttk.Label(depth_row, text="扫描层级：").pack(side="left")
+        depth_row = ttk.Frame(frame, style="Card.TFrame")
+        depth_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(7, 4))
+        ttk.Label(depth_row, text="层级", style="Card.TLabel").pack(side="left", padx=(0, 10))
         all_depth = ttk.Radiobutton(
             depth_row,
-            text="全部层级（默认，扫描到最深处）",
+            text="扫描到最深处",
             variable=self.depth_mode_var,
             value="all",
+            style="Card.TRadiobutton",
             command=self._update_depth_state,
         )
-        all_depth.pack(side="left", padx=(0, 14))
+        all_depth.pack(side="left", padx=(0, 12))
         limited = ttk.Radiobutton(
             depth_row,
-            text="限制为",
+            text="最多",
             variable=self.depth_mode_var,
             value="limited",
+            style="Card.TRadiobutton",
             command=self._update_depth_state,
         )
         limited.pack(side="left")
@@ -246,41 +367,44 @@ class BatchRenameApp:
         self._input_widgets.extend([all_depth, limited, self.depth_spin])
         ttk.Label(
             frame,
-            text="说明：根目录自身不改名；无法访问的子目录会记录为扫描提示，不影响其他项目。",
+            text="根目录本身不参与匹配；第 1 层表示根目录中的直接子项。",
             style="Hint.TLabel",
-        ).grid(row=2, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 8))
+            wraplength=470,
+        ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
     def _build_rule_frame(self, parent: ttk.Frame) -> None:
-        frame = ttk.LabelFrame(parent, text="2. 重命名规则", style="Section.TLabelframe")
-        frame.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+        frame = ttk.Frame(parent, style="Card.TFrame", padding=16)
+        frame.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+        self.rule_card = frame
         frame.columnconfigure(1, weight=1)
         frame.columnconfigure(3, weight=1)
-
-        ttk.Label(frame, text="查找内容：").grid(row=0, column=0, padx=(10, 6), pady=(9, 5), sticky="w")
+        ttk.Label(frame, text="重命名规则", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 11))
+        examples_button = ttk.Button(frame, text="正则示例", style="Secondary.TButton", command=self._show_regex_examples)
+        examples_button.grid(row=0, column=4, sticky="e", pady=(0, 8))
+        ttk.Label(frame, text="查找", style="Card.TLabel").grid(row=1, column=0, padx=(0, 8), pady=4, sticky="w")
         search_entry = ttk.Entry(frame, textvariable=self.search_var)
-        search_entry.grid(row=0, column=1, padx=(0, 14), pady=(9, 5), sticky="ew")
-        ttk.Label(frame, text="替换为：").grid(row=0, column=2, padx=(0, 6), pady=(9, 5), sticky="w")
+        search_entry.grid(row=1, column=1, columnspan=4, pady=4, sticky="ew", ipady=4)
+        ttk.Label(frame, text="替换", style="Card.TLabel").grid(row=2, column=0, padx=(0, 8), pady=4, sticky="w")
         replace_entry = ttk.Entry(frame, textvariable=self.replacement_var)
-        replace_entry.grid(row=0, column=3, padx=(0, 10), pady=(9, 5), sticky="ew")
+        replace_entry.grid(row=2, column=1, columnspan=4, pady=4, sticky="ew", ipady=4)
         ToolTip(search_entry, "普通模式：输入要查找的原样文本。正则模式：输入 Python 正则表达式。不能为空。")
         ToolTip(replace_entry, "可留空，表示删除匹配内容。正则模式可使用 \\1 或 \\g<名称> 引用捕获组。")
 
-        options = ttk.Frame(frame)
-        options.grid(row=1, column=0, columnspan=4, sticky="ew", padx=10, pady=(3, 4))
-        regex = ttk.Checkbutton(options, text="使用正则表达式（高级）", variable=self.regex_var)
-        regex.pack(side="left", padx=(0, 18))
-        dirs = ttk.Checkbutton(options, text="处理文件夹", variable=self.include_dirs_var)
-        dirs.pack(side="left", padx=(0, 18))
-        files = ttk.Checkbutton(options, text="处理文件", variable=self.include_files_var)
-        files.pack(side="left", padx=(0, 18))
+        options = ttk.Frame(frame, style="Card.TFrame")
+        options.grid(row=3, column=0, columnspan=5, sticky="ew", pady=(6, 2))
+        regex = ttk.Checkbutton(options, text="正则表达式", variable=self.regex_var, style="Card.TCheckbutton")
+        regex.pack(side="left", padx=(0, 12))
+        dirs = ttk.Checkbutton(options, text="文件夹", variable=self.include_dirs_var, style="Card.TCheckbutton")
+        dirs.pack(side="left", padx=(0, 12))
+        files = ttk.Checkbutton(options, text="文件", variable=self.include_files_var, style="Card.TCheckbutton")
+        files.pack(side="left", padx=(0, 12))
         extension = ttk.Checkbutton(
             options,
-            text="允许修改文件扩展名",
+            text="包含扩展名",
             variable=self.rename_extension_var,
+            style="Card.TCheckbutton",
         )
         extension.pack(side="left")
-        examples_button = ttk.Button(options, text="正则示例…", command=self._show_regex_examples)
-        examples_button.pack(side="right")
         self._input_widgets.extend(
             [search_entry, replace_entry, regex, dirs, files, extension, examples_button]
         )
@@ -290,19 +414,29 @@ class BatchRenameApp:
         ToolTip(extension, "默认保护最后一个扩展名。例如查找 jpg 不会改变照片.jpg；开启后才会处理整个文件名。")
         ToolTip(examples_button, "查看可直接套用的日期、序号、标签删除和片段交换示例。")
 
-        self.rule_feedback_label = ttk.Label(frame, textvariable=self.rule_feedback_var, style="Hint.TLabel")
-        self.rule_feedback_label.grid(row=2, column=0, columnspan=4, sticky="w", padx=10, pady=(0, 8))
+        self.rule_feedback_label = ttk.Label(
+            frame,
+            textvariable=self.rule_feedback_var,
+            style="Hint.TLabel",
+            wraplength=900,
+        )
+        self.rule_feedback_label.grid(row=4, column=0, columnspan=5, sticky="w", pady=(5, 0))
 
     def _build_actions_frame(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent)
-        frame.grid(row=3, column=0, sticky="ew", pady=(0, 8))
+        frame = ttk.Frame(parent, style="Card.TFrame", padding=(14, 10))
+        frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
         frame.columnconfigure(2, weight=1)
-        self.scan_button = ttk.Button(frame, text="扫描预览", style="Accent.TButton", command=self._start_scan)
+        self.scan_button = ttk.Button(frame, text="扫描匹配", style="Accent.TButton", command=self._start_scan)
         self.scan_button.grid(row=0, column=0, padx=(0, 8))
-        self.execute_button = ttk.Button(frame, text="执行重命名", command=self._confirm_execute, state="disabled")
+        self.execute_button = ttk.Button(frame, text="确认并重命名", style="Secondary.TButton", command=self._confirm_execute, state="disabled")
         self.execute_button.grid(row=0, column=1, padx=(0, 14))
-        ttk.Label(frame, textvariable=self.stats_var, style="Stats.TLabel").grid(row=0, column=2, sticky="w")
-        ttk.Label(frame, text="每类预览：").grid(row=0, column=3, padx=(8, 4))
+        ttk.Label(
+            frame,
+            textvariable=self.stats_var,
+            style="Stats.TLabel",
+            wraplength=500,
+        ).grid(row=0, column=2, sticky="w")
+        ttk.Label(frame, text="预览上限：").grid(row=0, column=3, padx=(8, 4))
         preview_spin = ttk.Spinbox(
             frame,
             from_=1,
@@ -319,55 +453,69 @@ class BatchRenameApp:
         self._input_widgets.append(preview_spin)
 
     def _build_preview_frame(self, parent: ttk.Frame) -> None:
-        frame = ttk.LabelFrame(parent, text="3. 分类预览", style="Section.TLabelframe")
-        frame.grid(row=4, column=0, sticky="nsew", pady=(0, 8))
-        frame.rowconfigure(0, weight=1)
+        frame = ttk.Frame(parent, style="Card.TFrame", padding=(14, 12))
+        frame.grid(row=3, column=0, sticky="nsew", pady=(0, 10))
+        frame.rowconfigure(1, weight=1)
         frame.columnconfigure(0, weight=1)
-        notebook = ttk.Notebook(frame)
-        notebook.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
-        directory_tab = ttk.Frame(notebook)
-        file_tab = ttk.Frame(notebook)
-        notebook.add(directory_tab, text="文件夹（0）")
-        notebook.add(file_tab, text="文件（0）")
-        self.preview_notebook = notebook
-        self.directory_tree = self._create_tree(directory_tab)
-        self.file_tree = self._create_tree(file_tab)
+        heading = ttk.Frame(frame, style="Card.TFrame")
+        heading.grid(row=0, column=0, sticky="ew", pady=(0, 9))
+        heading.columnconfigure(1, weight=1)
+        ttk.Label(heading, text="匹配结果", style="CardTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            heading,
+            text="文件夹优先，同类按名称自然排序；红色项目不会执行。",
+            style="Hint.TLabel",
+        ).grid(row=0, column=1, sticky="e")
+        self.result_tree = self._create_tree(frame)
 
     def _create_tree(self, parent: ttk.Frame) -> ttk.Treeview:
-        parent.rowconfigure(0, weight=1)
+        parent.rowconfigure(1, weight=1)
         parent.columnconfigure(0, weight=1)
-        columns = ("old", "new", "parent", "status", "detail")
-        tree = ttk.Treeview(parent, columns=columns, show="headings", selectmode="browse")
+        columns = ("kind", "old", "new", "parent", "status", "detail")
+        tree = ttk.Treeview(
+            parent,
+            columns=columns,
+            show="headings",
+            selectmode="browse",
+            height=5,
+        )
         headings = {
+            "kind": "类型",
             "old": "原名称",
             "new": "新名称",
             "parent": "所在目录",
             "status": "状态",
             "detail": "说明",
         }
-        widths = {"old": 190, "new": 190, "parent": 350, "status": 100, "detail": 230}
+        widths = {"kind": 58, "old": 125, "new": 125, "parent": 210, "status": 88, "detail": 170}
         for column in columns:
             tree.heading(column, text=headings[column])
-            tree.column(column, width=widths[column], minwidth=80, stretch=column in {"parent", "detail"})
+            tree.column(
+                column,
+                width=widths[column],
+                minwidth=52 if column == "kind" else 72,
+                stretch=column in {"old", "new", "parent", "detail"},
+            )
         ybar = ttk.Scrollbar(parent, orient="vertical", command=tree.yview)
         xbar = ttk.Scrollbar(parent, orient="horizontal", command=tree.xview)
         tree.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
-        tree.grid(row=0, column=0, sticky="nsew")
-        ybar.grid(row=0, column=1, sticky="ns")
-        xbar.grid(row=1, column=0, sticky="ew")
+        tree.grid(row=1, column=0, sticky="nsew")
+        ybar.grid(row=1, column=1, sticky="ns")
+        xbar.grid(row=2, column=0, sticky="ew")
         tree.tag_configure("blocked", foreground="#9b2c2c")
         tree.tag_configure("ready", foreground="#176b34")
+        tree.tag_configure("unchanged", foreground=self.COLORS["warning"])
         ToolTip(tree, "双击或横向滚动可查看长路径。红色项目会被跳过，绿色项目将在确认后执行。")
         return tree
 
     def _build_progress_frame(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent)
-        frame.grid(row=5, column=0, sticky="ew")
+        frame = ttk.Frame(parent, style="Card.TFrame", padding=(12, 9))
+        frame.grid(row=4, column=0, sticky="ew")
         frame.columnconfigure(0, weight=1)
-        self.progress = ttk.Progressbar(frame, mode="determinate", maximum=100)
+        self.progress = ttk.Progressbar(frame, mode="determinate", maximum=100, style="Modern.Horizontal.TProgressbar")
         self.progress.grid(row=0, column=0, sticky="ew", padx=(0, 8))
         ttk.Label(frame, textvariable=self.progress_text_var, width=42).grid(row=0, column=1, sticky="e")
-        self.details_button = ttk.Button(frame, text="查看结果详情", command=self._show_execution_details, state="disabled")
+        self.details_button = ttk.Button(frame, text="结果详情", style="Secondary.TButton", command=self._show_execution_details, state="disabled")
         self.details_button.grid(row=0, column=2, padx=(8, 0))
         status = ttk.Label(self.root, textvariable=self.status_var, relief="sunken", anchor="w", padding=(8, 4))
         status.pack(fill="x", side="bottom")
@@ -521,30 +669,36 @@ class BatchRenameApp:
             )
 
     def _render_preview(self) -> None:
-        if not hasattr(self, "directory_tree"):
+        if not hasattr(self, "result_tree"):
             return
         try:
             limit = max(1, int(self.preview_limit_var.get()))
         except (ValueError, tk.TclError):
             return
         items = self._last_scan.candidates if self._last_scan is not None else []
-        directories, files = partition_preview(items, limit)
-        self._fill_tree(self.directory_tree, directories)
-        self._fill_tree(self.file_tree, files)
-        directory_total = sum(item.kind is ItemKind.DIRECTORY for item in items)
-        file_total = sum(item.kind is ItemKind.FILE for item in items)
-        self.preview_notebook.tab(0, text=f"文件夹（显示 {len(directories)}/{directory_total}）")
-        self.preview_notebook.tab(1, text=f"文件（显示 {len(files)}/{file_total}）")
+        self._fill_tree(self.result_tree, sorted_preview_items(items, limit))
 
     @staticmethod
     def _fill_tree(tree: ttk.Treeview, items: Iterable[RenameCandidate]) -> None:
         tree.delete(*tree.get_children())
         for item in items:
-            tag = "ready" if item.status is CandidateStatus.READY else "blocked"
+            if item.status is CandidateStatus.READY:
+                tag = "ready"
+            elif item.status is CandidateStatus.UNCHANGED:
+                tag = "unchanged"
+            else:
+                tag = "blocked"
             tree.insert(
                 "",
                 "end",
-                values=(item.old_name, item.new_name, str(item.source.parent), item.status.value, item.detail),
+                values=(
+                    item.kind.value,
+                    item.old_name,
+                    item.new_name,
+                    str(item.source.parent),
+                    item.status.value,
+                    item.detail,
+                ),
                 tags=(tag,),
             )
 
@@ -835,6 +989,14 @@ class BatchRenameApp:
 
 
 def run() -> None:
+    if os.name == "nt":
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except (AttributeError, OSError):
+            try:
+                ctypes.windll.user32.SetProcessDPIAware()
+            except (AttributeError, OSError):
+                pass
     root = tk.Tk()
     BatchRenameApp(root)
     root.mainloop()

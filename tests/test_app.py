@@ -79,3 +79,30 @@ def test_applying_regex_example_fills_rule_and_enables_regex_mode():
         assert app.regex_var.get() is True
     finally:
         root.destroy()
+
+
+def test_main_window_uses_one_result_table_with_type_column():
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        app = BatchRenameApp(root)
+
+        assert hasattr(app, "result_tree")
+        assert not hasattr(app, "preview_notebook")
+        assert app.result_tree["columns"][0] == "kind"
+        assert hasattr(app, "scope_card")
+        assert hasattr(app, "rule_card")
+    finally:
+        root.destroy()
+
+
+def test_default_layout_fits_inside_initial_window_height():
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        BatchRenameApp(root)
+        root.update_idletasks()
+
+        assert root.winfo_reqheight() <= 820
+    finally:
+        root.destroy()
