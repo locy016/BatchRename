@@ -43,6 +43,15 @@ _RESERVED_NAMES = {
 }
 
 
+def _natural_name_key(value: str) -> tuple[tuple[int, str | int], ...]:
+    """生成不区分大小写且支持数字片段的稳定名称排序键。"""
+
+    return tuple(
+        (1, int(part)) if part.isdigit() else (0, part.casefold())
+        for part in re.split(r"(\d+)", value)
+    )
+
+
 def validate_windows_name(name: str) -> str | None:
     """返回 Windows 文件名无效的中文原因，有效时返回 ``None``。"""
 
@@ -177,8 +186,8 @@ def search_matches(options: MatchOptions) -> MatchResult:
     result.items.sort(
         key=lambda item: (
             item.kind is ItemKind.FILE,
+            _natural_name_key(item.source.name),
             str(item.source.parent).casefold(),
-            item.source.name.casefold(),
         )
     )
     return result

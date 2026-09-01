@@ -54,6 +54,17 @@ def test_search_matches_respects_object_type_and_depth(tmp_path):
     assert nested not in {item.source for item in result.items}
 
 
+def test_search_matches_uses_kind_then_natural_name_order(tmp_path):
+    folder = tmp_path / "文件3目录"
+    folder.mkdir()
+    tenth = touch(tmp_path / "文件10.txt")
+    second = touch(tmp_path / "文件2.txt")
+
+    result = search_matches(MatchOptions(tmp_path, "文件"))
+
+    assert [item.source for item in result.items] == [folder, second, tenth]
+
+
 def test_build_preview_uses_snapshot_without_scandir(tmp_path, monkeypatch):
     source = touch(tmp_path / "旧版.txt")
     snapshot = search_matches(MatchOptions(tmp_path, "旧版"))

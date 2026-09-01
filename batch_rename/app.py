@@ -36,9 +36,9 @@ from .models import (
 )
 
 
-def _natural_name_key(value: str) -> tuple[str | int, ...]:
+def _natural_name_key(value: str) -> tuple[tuple[int, str | int], ...]:
     return tuple(
-        int(part) if part.isdigit() else part.casefold()
+        (1, int(part)) if part.isdigit() else (0, part.casefold())
         for part in re.split(r"(\d+)", value)
     )
 
@@ -1201,12 +1201,15 @@ class BatchRenameApp:
             self.result_card,
             self.result_tree,
             self.stats_label,
+            self.progress,
         ):
             widget.bind(
                 "<Button-1>", lambda _event: self._close_tool_panel(), add="+"
             )
 
     def _toggle_tool_panel(self, name: str) -> None:
+        if self._busy:
+            return
         if self.active_tool_panel == name:
             self._close_tool_panel()
             return
@@ -1215,7 +1218,10 @@ class BatchRenameApp:
         self.root.update_idletasks()
         available_width = max(360, self.body_frame.winfo_width() - 285)
         width = min(500, available_width - 16)
-        panel.place(x=278, y=max(8, self.body_frame.winfo_height() - 230), width=width)
+        body_height = max(1, self.body_frame.winfo_height())
+        height = min(panel.winfo_reqheight(), max(1, body_height - 16))
+        y = max(8, body_height - height - 8)
+        panel.place(x=278, y=y, width=width, height=height)
         panel.lift()
         self.active_tool_panel = name
 
@@ -1960,7 +1966,7 @@ class BatchRenameApp:
         level(
             "处理完成",
             f"成功：{result.succeeded} 项\n跳过：{result.skipped} 项\n失败：{result.failed} 项\n\n"
-            "点击主窗口中的“查看结果详情”可查看每一项的处理记录。",
+            "可从顶部“功能 → 结果详情”查看每一项的处理记录。",
             parent=self.root,
         )
 
@@ -1996,6 +2002,11 @@ class BatchRenameApp:
         self.preview_button.configure(state=state)
         for widget in self._input_widgets:
             widget.configure(state=state)
+        self.regex_category_selector.configure(
+            state="disabled" if busy else "readonly"
+        )
+        self.regex_template_list.configure(state=state)
+        self.regex_apply_button.configure(state=state)
         if busy:
             self.execute_button.configure(state="disabled")
         self._update_depth_state()
@@ -2107,6 +2118,8 @@ class BatchRenameApp:
     def _apply_regex_example(
         self, example: RegexExample, window: tk.Toplevel | None = None
     ) -> None:
+        if self._busy:
+            return
         self.search_var.set(example.search)
         self.replacement_var.set(example.replacement)
         self.regex_var.set(True)

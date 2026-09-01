@@ -262,6 +262,17 @@ def test_bottom_tool_panels_are_mutually_exclusive_and_collapsible(tk_window):
     assert app.templates_panel.winfo_manager() == ""
 
 
+def test_open_template_panel_is_locked_during_background_work(tk_window):
+    app = BatchRenameApp(tk_window)
+    app._toggle_tool_panel("templates")
+
+    app._set_busy(True)
+
+    assert str(app.regex_category_selector.cget("state")) == "disabled"
+    assert str(app.regex_template_list.cget("state")) == "disabled"
+    assert app.regex_apply_button.instate(["disabled"])
+
+
 def test_escape_and_workspace_click_close_floating_tools(tk_window):
     app = BatchRenameApp(tk_window)
     tk_window.deiconify()
@@ -276,6 +287,11 @@ def test_escape_and_workspace_click_close_floating_tools(tk_window):
 
     app._toggle_tool_panel("templates")
     app.result_tree.event_generate("<Button-1>", x=10, y=10)
+    tk_window.update()
+    assert app.active_tool_panel is None
+
+    app._toggle_tool_panel("settings")
+    app.progress.event_generate("<Button-1>", x=10, y=5)
     tk_window.update()
     assert app.active_tool_panel is None
 
@@ -432,6 +448,16 @@ def test_bottom_tool_buttons_fit_inside_960_by_680_workflow_rail(tk_window):
             assert button.winfo_ismapped()
             assert button.winfo_y() + button.winfo_height() <= app.workflow_rail.winfo_height()
         assert app.stats_label.winfo_width() >= app.stats_label.winfo_reqwidth()
+        app._toggle_tool_panel("templates")
+        tk_window.update()
+        assert (
+            app.templates_panel.winfo_y() + app.templates_panel.winfo_height()
+            <= app.body_frame.winfo_height()
+        )
+        assert (
+            app.regex_apply_button.winfo_rooty() + app.regex_apply_button.winfo_height()
+            <= app.templates_panel.winfo_rooty() + app.templates_panel.winfo_height()
+        )
     finally:
         tk_window.tk.call("tk", "scaling", previous_scaling)
 
