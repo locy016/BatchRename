@@ -1,6 +1,11 @@
 from pathlib import Path
 
 from PIL import Image
+from batch_rename import __version__
+
+
+def test_package_uses_confirmed_beta_version():
+    assert __version__ == "1.1.0-beta.1"
 
 
 def test_build_script_is_compatible_with_windows_powershell_5_encoding():

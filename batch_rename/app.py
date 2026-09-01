@@ -13,6 +13,7 @@ from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 from typing import Callable, Iterable
 
+from . import __version__
 from .core import (
     RenameRule,
     RuleError,
@@ -1971,10 +1972,67 @@ class BatchRenameApp:
         self._sync_command_states()
 
     def _show_about(self) -> None:
-        messagebox.showinfo(
-            "关于批量重命名",
-            "批量重命名工具\n\n版本信息与完整产品说明将在关于窗口中展示。",
-            parent=self.root,
+        def build(window: tk.Toplevel) -> None:
+            outer = ttk.Frame(window, style="App.TFrame", padding=18)
+            outer.pack(fill="both", expand=True)
+            header = ttk.Frame(outer, style="Header.TFrame", padding=14)
+            header.pack(fill="x", pady=(0, 10))
+            if self._header_icon is not None:
+                ttk.Label(header, image=self._header_icon, style="Icon.TLabel").pack(
+                    side="left", padx=(0, 12)
+                )
+            title = ttk.Frame(header, style="Header.TFrame")
+            title.pack(side="left", fill="x", expand=True)
+            ttk.Label(title, text="批量重命名", style="HeaderTitle.TLabel").pack(anchor="w")
+            ttk.Label(
+                title,
+                text="面向 Windows 多层目录的安全名称整理工具",
+                style="HeaderSubtitle.TLabel",
+            ).pack(anchor="w", pady=(2, 0))
+            ttk.Label(
+                header,
+                text=f"v{__version__}",
+                style="HeaderSubtitle.TLabel",
+                padding=(8, 4),
+            ).pack(side="right")
+
+            content = (
+                f"版本：{__version__}\n\n"
+                "当前已经实现\n"
+                "• 扫描匹配与结果预览分离的两阶段工作流\n"
+                "• 文件夹和文件统一分类排序、冲突拦截与执行确认\n"
+                "• 普通文本、正则表达式、经典正则模板与一键应用\n"
+                "• 多层目录、扩展名保护、处理进度和结果详情\n\n"
+                "正在开发中\n"
+                "• 撤回管理（开发中）\n"
+                "• 操作日志（开发中）\n\n"
+                "本软件处于快速开发期，预发行版本可能继续调整界面和数据格式。\n"
+                "重要目录请先备份；名称规则、预览结果及最终执行由使用者自行确认。"
+            )
+            self.about_content_var = tk.StringVar(window, value=content)
+            ttk.Label(
+                outer,
+                textvariable=self.about_content_var,
+                style="Card.TLabel",
+                justify="left",
+                wraplength=600,
+                padding=(14, 12),
+            ).pack(fill="both", expand=True)
+            contact = ttk.Frame(outer, style="Card.TFrame", padding=(14, 9))
+            contact.pack(fill="x", pady=(10, 0))
+            ttk.Label(contact, text="联系作者", style="Field.TLabel").pack(side="left")
+            self.about_email_var = tk.StringVar(window, value="lo.c@live.cn")
+            self.about_email_entry = ttk.Entry(
+                contact,
+                textvariable=self.about_email_var,
+                state="readonly",
+                style="Modern.TEntry",
+                width=24,
+            )
+            self.about_email_entry.pack(side="right")
+
+        self.dialogs.open(
+            "about", title="关于批量重命名", size=(670, 570), build=build
         )
 
     def _show_execution_details(self) -> None:

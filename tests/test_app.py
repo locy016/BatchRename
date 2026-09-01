@@ -328,6 +328,26 @@ def test_top_menu_contains_only_global_commands(tk_window):
     assert workflow_labels.isdisjoint(top_commands)
 
 
+def test_about_describes_current_beta_roadmap_safety_and_contact(tk_window):
+    app = BatchRenameApp(tk_window)
+
+    app._show_about()
+
+    window = app.dialogs.windows["about"]
+    content = app.about_content_var.get()
+    assert "1.1.0-beta.1" in content
+    assert "两阶段" in content
+    assert "正则模板" in content
+    assert "撤回管理" in content and "开发中" in content
+    assert "操作日志" in content and "开发中" in content
+    assert "快速开发期" in content
+    assert "备份" in content and "自行确认" in content
+    assert app.about_email_var.get() == "lo.c@live.cn"
+    assert str(app.about_email_entry.cget("state")) == "readonly"
+    assert not app.about_email_entry.bind("<Button-1>")
+    assert window.winfo_exists()
+
+
 def test_result_table_values_follow_the_visible_column_order(tk_window):
     app = BatchRenameApp(tk_window)
     item = candidate("文件2.txt", ItemKind.FILE)
