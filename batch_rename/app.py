@@ -600,7 +600,7 @@ class BatchRenameApp:
     RAIL_WIDTHS = {"compact": 64, "standard": 270, "spacious": 300}
     RESULT_COLUMN_POLICIES = {
         "compact": {
-            "kind": 52,
+            "kind": 72,
             "parent": 96,
             "old": 88,
             "new": 96,
@@ -608,7 +608,7 @@ class BatchRenameApp:
             "detail": 88,
         },
         "standard": {
-            "kind": 52,
+            "kind": 72,
             "parent": 135,
             "old": 100,
             "new": 110,
@@ -616,7 +616,7 @@ class BatchRenameApp:
             "detail": 110,
         },
         "spacious": {
-            "kind": 64,
+            "kind": 72,
             "parent": 250,
             "old": 180,
             "new": 190,
@@ -1141,7 +1141,7 @@ class BatchRenameApp:
             self.workflow_rail.configure(width=self.RAIL_WIDTHS[mode])
             self.workflow_rail.grid(row=0, column=0, sticky="ns", padx=(0, 7))
         for column, column_width in self.RESULT_COLUMN_POLICIES[mode].items():
-            min_width = 52 if column == "kind" else min(72, column_width)
+            min_width = column_width if column == "kind" else min(72, column_width)
             self.result_tree.column(column, width=column_width, minwidth=min_width)
         self.new_name_overlay.schedule()
         self._position_active_tool_panel()
@@ -2644,6 +2644,12 @@ class BatchRenameApp:
 4. 在统一结果表中按“类型、所在目录、原名称、新名称、状态、说明”检查结果；文件夹排在文件之前，同类项目按名称排列。新名称使用青绿色便于对照，长内容被缩短时，把鼠标停在对应位置可查看完整文字。
 5. 点击“确认执行”，核对汇总并二次确认。执行期间会显示逐项进度，完成后可从“功能 → 结果详情”查看记录。
 6. 层级、文件夹/文件范围和扩展名保护位于左下角“设置”；正则模板与设置互斥显示，再次点击、按 Esc 或点击结果区会收起。
+
+窗口与紧凑导航
+
+程序启动时会跟随鼠标所在显示器选择初始大小，窗口始终保留 960×680 的最小可操作尺寸。标准屏、超宽屏和竖屏使用不同的内容比例；手动缩放时，结果区会优先获得空间。
+
+窗口宽度不足 1120 时，左侧流程会折叠为深色导航条。点击顶部流程图标展开工作流抽屉；底部“.*”和齿轮图标分别打开正则模板与设置。工作流、模板和设置互斥显示，可重复点击、按 Esc 或点击结果区收起。缩放不会清空已经填写的目录、规则、匹配或预览。
 
 普通文本模式
 

@@ -1,6 +1,6 @@
 from pathlib import Path
 import tkinter as tk
-from tkinter import ttk
+from tkinter import font as tkfont, ttk
 
 import main
 import pytest
@@ -481,9 +481,9 @@ def test_default_layout_fits_960_by_680_and_expands_the_result_area(tk_window):
 @pytest.mark.parametrize(
     ("width", "mode", "rail_width", "column_widths"),
     [
-        (960, "compact", 64, {"kind": 52, "parent": 96, "old": 88, "new": 96, "status": 72, "detail": 88}),
-        (1280, "standard", 270, {"kind": 52, "parent": 135, "old": 100, "new": 110, "status": 72, "detail": 110}),
-        (1600, "spacious", 300, {"kind": 64, "parent": 250, "old": 180, "new": 190, "status": 96, "detail": 220}),
+        (960, "compact", 64, {"kind": 72, "parent": 96, "old": 88, "new": 96, "status": 72, "detail": 88}),
+        (1280, "standard", 270, {"kind": 72, "parent": 135, "old": 100, "new": 110, "status": 72, "detail": 110}),
+        (1600, "spacious", 300, {"kind": 72, "parent": 250, "old": 180, "new": 190, "status": 96, "detail": 220}),
     ],
 )
 def test_responsive_modes_resize_the_rail_and_apply_result_column_policies(
@@ -503,6 +503,23 @@ def test_responsive_modes_resize_the_rail_and_apply_result_column_policies(
     } == column_widths
     for essential_column in ("kind", "old", "new", "status"):
         assert int(app.result_tree.column(essential_column, "width")) > 0
+
+
+def test_type_column_fits_the_complete_directory_label_at_high_dpi(tk_window):
+    previous_scaling = float(tk_window.tk.call("tk", "scaling"))
+    try:
+        tk_window.tk.call("tk", "scaling", 2.0)
+        app = BatchRenameApp(
+            tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
+        )
+        tree_font = tkfont.Font(
+            root=tk_window,
+            font=ttk.Style(tk_window).lookup("Treeview", "font"),
+        )
+
+        assert int(app.result_tree.column("kind", "width")) >= tree_font.measure("文件夹") + 16
+    finally:
+        tk_window.tk.call("tk", "scaling", previous_scaling)
 
 
 def test_responsive_mode_transitions_keep_rule_widgets_and_state_instances(tk_window):

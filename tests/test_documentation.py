@@ -6,6 +6,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 README_PATH = PROJECT_ROOT / "README.md"
 REQUIRED_VISUALS = {
+    "docs/images/batch-rename-compact.png",
     "docs/images/batch-rename-main.png",
     "docs/images/batch-rename-regex-templates.png",
     "docs/images/batch-rename-workflow.svg",
