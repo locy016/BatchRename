@@ -51,6 +51,17 @@ def candidate(name, kind, status=CandidateStatus.READY):
     )
 
 
+def menu_labels(menu):
+    end = menu.index("end")
+    if end is None:
+        return ()
+    return tuple(
+        menu.entrycget(index, "label")
+        for index in range(end + 1)
+        if menu.type(index) != "separator"
+    )
+
+
 def test_main_exposes_callable_entrypoint():
     assert callable(main.main)
     assert BatchRenameApp.__name__ == "BatchRenameApp"
@@ -90,9 +101,9 @@ def test_busy_state_locks_every_rule_and_scope_input(tk_window):
 
     app._set_busy(True)
 
-    assert app.scan_button.instate(["disabled"])
+    assert app.preview_button.instate(["disabled"])
     assert all(widget.instate(["disabled"]) for widget in app._input_widgets)
-    assert app.search_scan_button.instate(["disabled"])
+    assert app.search_button.instate(["disabled"])
 
 
 def match_result(search="项目"):
@@ -116,15 +127,15 @@ def test_search_and_preview_commands_are_separate(tk_window, monkeypatch):
     monkeypatch.setattr(BatchRenameApp, "_start_preview", lambda self: calls.append("preview"))
     app = BatchRenameApp(tk_window)
 
-    assert app.search_scan_button.cget("text") == "扫描"
-    assert app.scan_button.cget("text") == "结果预览"
+    assert app.search_button.cget("text") == "扫描"
+    assert app.preview_button.cget("text") == "结果预览"
 
-    app.search_scan_button.invoke()
+    app.search_button.invoke()
     assert calls == ["search"]
 
     app._last_matches = match_result()
     app._sync_command_states()
-    app.scan_button.invoke()
+    app.preview_button.invoke()
     assert calls == ["search", "preview"]
 
     tk_window.deiconify()
@@ -243,9 +254,39 @@ def test_main_window_uses_one_result_table_with_type_column(tk_window):
         "status",
         "detail",
     )
-    assert hasattr(app, "scope_card")
-    assert hasattr(app, "rule_card")
-    assert app.regex_templates_button.cget("text") == "正则模板"
+    assert hasattr(app, "workflow_rail")
+    assert hasattr(app, "result_workspace")
+    assert not hasattr(app, "scope_card")
+    assert not hasattr(app, "rule_card")
+    assert not hasattr(app, "help_button")
+
+
+def test_top_menu_contains_only_global_commands(tk_window):
+    app = BatchRenameApp(tk_window)
+
+    assert menu_labels(app.top_menu) == ("文件", "功能", "帮助")
+    assert menu_labels(app.file_menu) == ("退出",)
+    assert menu_labels(app.feature_menu) == (
+        "结果详情",
+        "撤回管理（开发中）",
+        "操作日志（开发中）",
+    )
+    assert menu_labels(app.help_menu) == ("使用说明", "关于")
+    assert app.feature_menu.entrycget(app.undo_menu_index, "state") == "disabled"
+    assert app.feature_menu.entrycget(app.log_menu_index, "state") == "disabled"
+
+    workflow_labels = {
+        app.directory_select_button.cget("text"),
+        app.search_button.cget("text"),
+        app.preview_button.cget("text"),
+        app.execute_button.cget("text"),
+    }
+    top_commands = set(
+        menu_labels(app.file_menu)
+        + menu_labels(app.feature_menu)
+        + menu_labels(app.help_menu)
+    )
+    assert workflow_labels.isdisjoint(top_commands)
 
 
 def test_result_table_values_follow_the_visible_column_order(tk_window):
@@ -292,35 +333,32 @@ def test_default_layout_fits_960_by_680_and_expands_the_result_area(tk_window):
     assert tk_window.winfo_reqwidth() <= 960
     assert tk_window.winfo_reqheight() <= 680
     assert int(app.result_tree.cget("height")) >= 10
-    assert app.main_content.grid_rowconfigure(3)["weight"] > 0
+    assert app.main_content.grid_rowconfigure(1)["weight"] > 0
+    assert app.result_workspace.grid_rowconfigure(1)["weight"] > 0
     assert app.result_card.grid_rowconfigure(1)["weight"] > 0
 
 
-def test_settings_use_35_65_split_and_complete_single_line_statistics(tk_window):
+def test_left_workflow_is_ordered_and_statistics_stay_on_one_line(tk_window):
     app = BatchRenameApp(tk_window)
 
-    assert app.settings_frame.grid_columnconfigure(0)["weight"] == 35
-    assert app.settings_frame.grid_columnconfigure(1)["weight"] == 65
-    assert app.settings_frame.grid_columnconfigure(0)["uniform"] == "settings"
-    assert app.settings_frame.grid_columnconfigure(1)["uniform"] == "settings"
     assert app.preview_limit_var.get() == 100
     assert app.stats_var.get() == (
         "匹配：0项 | 可修改：0项 | 名称未变化：0项 | 阻止执行：0项"
     )
     assert not app.stats_label.cget("wraplength")
 
-    tk_window.deiconify()
-    tk_window.update()
-    settings_width = app.scope_card.winfo_width() + app.rule_card.winfo_width()
-    assert app.scope_card.winfo_width() / settings_width == pytest.approx(0.35, abs=0.02)
-    assert app.stats_label.winfo_width() >= app.stats_label.winfo_reqwidth()
-
-
-def test_search_and_replacement_inputs_stay_on_one_row(tk_window):
-    app = BatchRenameApp(tk_window)
-
-    assert app.search_entry.grid_info()["row"] == app.replacement_entry.grid_info()["row"]
-    assert app.search_entry.grid_info()["column"] < app.replacement_entry.grid_info()["column"]
+    rows = [
+        app.directory_select_button.grid_info()["row"],
+        app.plain_mode_radio.grid_info()["row"],
+        app.search_entry.grid_info()["row"],
+        app.search_button.grid_info()["row"],
+        app.replacement_entry.grid_info()["row"],
+        app.preview_button.grid_info()["row"],
+        app.execute_button.grid_info()["row"],
+    ]
+    assert rows == sorted(rows)
+    assert len(set(rows)) == len(rows)
+    assert int(app.workflow_rail.cget("width")) <= 280
 
 
 def test_horizontal_scrollbar_hides_when_everything_is_visible(tk_window):
@@ -361,10 +399,11 @@ def test_main_controls_use_the_polished_component_styles(tk_window):
     assert app.preview_spin.cget("style") == "Modern.TSpinbox"
     assert app.depth_spin.cget("justify") == "center"
     assert app.preview_spin.cget("justify") == "center"
-    assert app.root_directory_label.cget("style") == "Field.TLabel"
-    assert app.search_field_label.cget("style") == "Field.TLabel"
-    assert app.replacement_field_label.cget("style") == "Field.TLabel"
+    assert app.root_directory_label.cget("style") == "WorkflowTitle.TLabel"
+    assert app.search_field_label.cget("style") == "WorkflowHint.TLabel"
+    assert app.replacement_field_label.cget("style") == "WorkflowTitle.TLabel"
     assert app.stats_label.cget("style") == "MatchStats.TLabel"
+    assert app.workflow_rail.cget("style") == "Workflow.TFrame"
     assert app.result_scrollbar.cget("style") == "Modern.Vertical.TScrollbar"
     assert (
         app.result_horizontal_scrollbar.cget("style")

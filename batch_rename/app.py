@@ -421,6 +421,32 @@ class BatchRenameApp:
         colors = self.COLORS
         style.configure("TFrame", background=colors["background"])
         style.configure("App.TFrame", background=colors["background"])
+        style.configure("Workflow.TFrame", background="#EAF0F5")
+        style.configure("WorkflowCard.TFrame", background="#EAF0F5")
+        style.configure(
+            "WorkflowTitle.TLabel",
+            background="#EAF0F5",
+            foreground=colors["navy"],
+            font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.configure(
+            "WorkflowHint.TLabel",
+            background="#EAF0F5",
+            foreground=colors["muted"],
+            font=("Microsoft YaHei UI", 8),
+        )
+        style.configure(
+            "Workflow.TRadiobutton",
+            background="#EAF0F5",
+            foreground=colors["text"],
+            padding=(4, 3),
+            font=("Microsoft YaHei UI", 9),
+        )
+        style.map(
+            "Workflow.TRadiobutton",
+            background=[("active", "#DCE7EF"), ("disabled", "#EAF0F5")],
+            foreground=[("disabled", "#99A5AF")],
+        )
         style.configure("Header.TFrame", background=colors["navy"])
         style.configure("Card.TFrame", background=colors["card"], relief="flat")
         style.configure(
@@ -674,10 +700,11 @@ class BatchRenameApp:
             self._header_icon = None
 
     def _build_ui(self) -> None:
+        self._build_top_menu()
         outer = ttk.Frame(self.root, style="App.TFrame", padding=(8, 6, 8, 5))
         outer.pack(fill="both", expand=True)
         outer.columnconfigure(0, weight=1)
-        outer.rowconfigure(3, weight=1)
+        outer.rowconfigure(1, weight=1)
         self.main_content = outer
 
         header = ttk.Frame(outer, style="Header.TFrame", padding=(11, 6))
@@ -701,20 +728,267 @@ class BatchRenameApp:
             text="在执行前看清每一个匹配结果，安全整理多层目录中的文件夹与文件。",
             style="HeaderSubtitle.TLabel",
         ).grid(row=1, column=1, sticky="w", pady=(2, 0))
-        help_button = ttk.Button(header, text="使用说明", style="Header.TButton", command=self._show_help)
-        help_button.grid(row=0, column=2, rowspan=2, padx=(12, 0))
-        ToolTip(help_button, "打开完整说明，包括层级定义、正则模板、冲突策略和安全注意事项。")
+        body = ttk.Frame(outer, style="App.TFrame")
+        body.grid(row=1, column=0, sticky="nsew")
+        body.rowconfigure(0, weight=1)
+        body.columnconfigure(1, weight=1)
+        self.body_frame = body
+        self._build_workflow_rail(body)
+        self._build_result_workspace(body)
+        self._build_tool_panels(body)
 
-        settings = ttk.Frame(outer, style="App.TFrame")
-        settings.grid(row=1, column=0, sticky="ew", pady=(0, 5))
-        settings.columnconfigure(0, weight=35, uniform="settings")
-        settings.columnconfigure(1, weight=65, uniform="settings")
-        self.settings_frame = settings
-        self._build_scope_frame(settings)
-        self._build_rule_frame(settings)
-        self._build_actions_frame(outer)
-        self._build_preview_frame(outer)
-        self._build_progress_frame(outer)
+    def _build_top_menu(self) -> None:
+        self.top_menu = tk.Menu(self.root, tearoff=False)
+        self.file_menu = tk.Menu(self.top_menu, tearoff=False)
+        self.file_menu.add_command(label="退出", command=self._on_close)
+        self.top_menu.add_cascade(label="文件", menu=self.file_menu)
+
+        self.feature_menu = tk.Menu(self.top_menu, tearoff=False)
+        self.feature_menu.add_command(
+            label="结果详情", command=self._show_execution_details, state="disabled"
+        )
+        self.result_details_menu_index = 0
+        self.feature_menu.add_separator()
+        self.feature_menu.add_command(label="撤回管理（开发中）", state="disabled")
+        self.undo_menu_index = self.feature_menu.index("end")
+        self.feature_menu.add_command(label="操作日志（开发中）", state="disabled")
+        self.log_menu_index = self.feature_menu.index("end")
+        self.top_menu.add_cascade(label="功能", menu=self.feature_menu)
+
+        self.help_menu = tk.Menu(self.top_menu, tearoff=False)
+        self.help_menu.add_command(label="使用说明", command=self._show_help)
+        self.help_menu.add_command(label="关于", command=self._show_about)
+        self.top_menu.add_cascade(label="帮助", menu=self.help_menu)
+        self.root.configure(menu=self.top_menu)
+        self.root.bind("<F1>", lambda _event: self._show_help())
+
+    def _build_workflow_rail(self, parent: ttk.Frame) -> None:
+        rail = ttk.Frame(parent, style="Workflow.TFrame", width=270, padding=(12, 10))
+        rail.grid(row=0, column=0, sticky="ns", padx=(0, 7))
+        rail.grid_propagate(False)
+        rail.columnconfigure(0, weight=1)
+        rail.columnconfigure(1, weight=1)
+        rail.rowconfigure(14, weight=1)
+        self.workflow_rail = rail
+
+        ttk.Label(rail, text="重命名流程", style="WorkflowTitle.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 8)
+        )
+        self.root_directory_label = ttk.Label(
+            rail, text="1  选择目录", style="WorkflowTitle.TLabel"
+        )
+        self.root_directory_label.grid(row=1, column=0, columnspan=2, sticky="w")
+        self.directory_entry = ttk.Entry(
+            rail, textvariable=self.directory_var, style="Modern.TEntry"
+        )
+        self.directory_entry.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 4), ipady=3)
+        self.directory_select_button = ttk.Button(
+            rail, text="选择目录…", style="Secondary.TButton", command=self._choose_directory
+        )
+        self.directory_select_button.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 9))
+
+        ttk.Label(rail, text="2  查找规则", style="WorkflowTitle.TLabel").grid(
+            row=4, column=0, columnspan=2, sticky="w"
+        )
+        self.plain_mode_radio = ttk.Radiobutton(
+            rail,
+            text="普通文本",
+            variable=self.regex_var,
+            value=False,
+            style="Workflow.TRadiobutton",
+        )
+        self.plain_mode_radio.grid(row=5, column=0, sticky="w", pady=(3, 2))
+        self.regex_mode_radio = ttk.Radiobutton(
+            rail,
+            text="正则表达式",
+            variable=self.regex_var,
+            value=True,
+            style="Workflow.TRadiobutton",
+        )
+        self.regex_mode_radio.grid(row=5, column=1, sticky="w", pady=(3, 2))
+        self.search_field_label = ttk.Label(
+            rail, text="查找内容", style="WorkflowHint.TLabel"
+        )
+        self.search_field_label.grid(row=6, column=0, columnspan=2, sticky="w")
+        self.search_entry = ttk.Entry(
+            rail, textvariable=self.search_var, style="Modern.TEntry"
+        )
+        self.search_entry.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(3, 4), ipady=3)
+        self.search_button = ttk.Button(
+            rail, text="扫描", style="Secondary.TButton", command=self._start_search
+        )
+        self.search_button.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(0, 9))
+
+        self.replacement_field_label = ttk.Label(
+            rail, text="3  替换为", style="WorkflowTitle.TLabel"
+        )
+        self.replacement_field_label.grid(row=9, column=0, columnspan=2, sticky="w")
+        self.replacement_entry = ttk.Entry(
+            rail, textvariable=self.replacement_var, style="Modern.TEntry"
+        )
+        self.replacement_entry.grid(row=10, column=0, columnspan=2, sticky="ew", pady=(4, 4), ipady=3)
+        self.preview_button = ttk.Button(
+            rail, text="结果预览", style="Accent.TButton", command=self._start_preview
+        )
+        self.preview_button.grid(row=11, column=0, columnspan=2, sticky="ew", pady=(0, 7))
+        self.execute_button = ttk.Button(
+            rail,
+            text="确认执行",
+            style="Secondary.TButton",
+            command=self._confirm_execute,
+            state="disabled",
+        )
+        self.execute_button.grid(row=12, column=0, columnspan=2, sticky="ew")
+        self.rule_feedback_label = ttk.Label(
+            rail,
+            textvariable=self.rule_feedback_var,
+            style="WorkflowHint.TLabel",
+            wraplength=238,
+            justify="left",
+        )
+        self.rule_feedback_label.grid(row=13, column=0, columnspan=2, sticky="ew", pady=(7, 0))
+
+        self.regex_templates_button = ttk.Button(
+            rail, text="⌘  正则模板", style="Secondary.TButton", command=self._show_regex_examples
+        )
+        self.regex_templates_button.grid(row=15, column=0, sticky="ew", padx=(0, 3), pady=(8, 0))
+        self.settings_tool_button = ttk.Button(
+            rail, text="⚙  设置", style="Secondary.TButton", command=self._show_settings
+        )
+        self.settings_tool_button.grid(row=15, column=1, sticky="ew", padx=(3, 0), pady=(8, 0))
+
+        # 兼容旧的内部名称；界面中仍只有一组流程按钮。
+        self.search_scan_button = self.search_button
+        self.scan_button = self.preview_button
+        self._input_widgets.extend(
+            [
+                self.directory_entry,
+                self.directory_select_button,
+                self.plain_mode_radio,
+                self.regex_mode_radio,
+                self.search_entry,
+                self.search_button,
+                self.replacement_entry,
+                self.regex_templates_button,
+                self.settings_tool_button,
+            ]
+        )
+        ToolTip(self.directory_entry, "扫描起点；根目录本身不会改名。")
+        ToolTip(self.search_button, "只查找名称匹配项，不计算新名称，也不会修改磁盘。")
+        ToolTip(self.preview_button, "根据刚才的匹配快照计算新名称和安全状态，不会重新扫描目录。")
+        ToolTip(self.execute_button, "只执行预览中状态为“可修改”的项目，并在执行前再次确认。")
+
+    def _build_result_workspace(self, parent: ttk.Frame) -> None:
+        workspace = ttk.Frame(parent, style="App.TFrame")
+        workspace.grid(row=0, column=1, sticky="nsew")
+        workspace.rowconfigure(1, weight=1)
+        workspace.columnconfigure(0, weight=1)
+        self.result_workspace = workspace
+        self._build_actions_frame(workspace)
+        self._build_preview_frame(workspace)
+        self._build_progress_frame(workspace)
+
+    def _build_tool_panels(self, parent: ttk.Frame) -> None:
+        self.active_tool_panel: str | None = None
+        self.settings_panel = ttk.Frame(parent, style="Card.TFrame", padding=14)
+        self.settings_panel.columnconfigure(1, weight=1)
+        ttk.Label(self.settings_panel, text="扫描与预览设置", style="CardTitle.TLabel").grid(
+            row=0, column=0, columnspan=4, sticky="w", pady=(0, 9)
+        )
+        ttk.Label(self.settings_panel, text="扫描层级", style="Field.TLabel").grid(
+            row=1, column=0, sticky="w", pady=4
+        )
+        all_depth = ttk.Radiobutton(
+            self.settings_panel,
+            text="全部层级",
+            variable=self.depth_mode_var,
+            value="all",
+            style="Card.TRadiobutton",
+            command=self._update_depth_state,
+        )
+        all_depth.grid(row=1, column=1, sticky="w")
+        limited = ttk.Radiobutton(
+            self.settings_panel,
+            text="最多",
+            variable=self.depth_mode_var,
+            value="limited",
+            style="Card.TRadiobutton",
+            command=self._update_depth_state,
+        )
+        limited.grid(row=1, column=2, sticky="w")
+        self.depth_spin = ttk.Spinbox(
+            self.settings_panel,
+            from_=1,
+            to=999,
+            width=6,
+            textvariable=self.depth_var,
+            style="Modern.TSpinbox",
+            justify="center",
+        )
+        self.depth_spin.grid(row=1, column=3, sticky="w", padx=(4, 0))
+        ttk.Label(self.settings_panel, text="处理对象", style="Field.TLabel").grid(
+            row=2, column=0, sticky="w", pady=4
+        )
+        dirs = ttk.Checkbutton(
+            self.settings_panel,
+            text="文件夹",
+            variable=self.include_dirs_var,
+            style="Card.TCheckbutton",
+        )
+        dirs.grid(row=2, column=1, sticky="w")
+        files = ttk.Checkbutton(
+            self.settings_panel,
+            text="文件",
+            variable=self.include_files_var,
+            style="Card.TCheckbutton",
+        )
+        files.grid(row=2, column=2, sticky="w")
+        extension = ttk.Checkbutton(
+            self.settings_panel,
+            text="允许修改扩展名",
+            variable=self.rename_extension_var,
+            style="Card.TCheckbutton",
+        )
+        extension.grid(row=3, column=0, columnspan=4, sticky="w", pady=(4, 0))
+        ttk.Label(
+            self.settings_panel,
+            text="层级和处理对象改变后需要重新扫描；扩展名选项只会使结果预览失效。",
+            style="Hint.TLabel",
+            wraplength=390,
+        ).grid(row=4, column=0, columnspan=4, sticky="ew", pady=(8, 0))
+        self._input_widgets.extend([all_depth, limited, self.depth_spin, dirs, files, extension])
+
+        self.templates_panel = ttk.Frame(parent, style="Card.TFrame", padding=14)
+        ttk.Label(self.templates_panel, text="正则模板", style="CardTitle.TLabel").pack(anchor="w")
+        ttk.Label(
+            self.templates_panel,
+            text="常用规则将在这里按用途选择并一键应用。",
+            style="Hint.TLabel",
+        ).pack(anchor="w", pady=(6, 0))
+
+        self.root.bind("<Escape>", lambda _event: self._close_tool_panel())
+        self.result_workspace.bind("<Button-1>", lambda _event: self._close_tool_panel())
+
+    def _toggle_tool_panel(self, name: str) -> None:
+        if self.active_tool_panel == name:
+            self._close_tool_panel()
+            return
+        self._close_tool_panel()
+        panel = self.settings_panel if name == "settings" else self.templates_panel
+        self.root.update_idletasks()
+        available_width = max(360, self.body_frame.winfo_width() - 285)
+        width = min(500, available_width - 16)
+        panel.place(x=278, y=max(8, self.body_frame.winfo_height() - 230), width=width)
+        panel.lift()
+        self.active_tool_panel = name
+
+    def _close_tool_panel(self) -> None:
+        self.settings_panel.place_forget()
+        self.templates_panel.place_forget()
+        self.active_tool_panel = None
+
+    def _show_settings(self) -> None:
+        self._toggle_tool_panel("settings")
 
     def _build_scope_frame(self, parent: ttk.Frame) -> None:
         frame = ttk.Frame(parent, style="Card.TFrame", padding=8)
@@ -883,25 +1157,16 @@ class BatchRenameApp:
 
     def _build_actions_frame(self, parent: ttk.Frame) -> None:
         frame = ttk.Frame(parent, style="Card.TFrame", padding=(8, 5))
-        frame.grid(row=2, column=0, sticky="ew", pady=(0, 5))
-        frame.columnconfigure(2, weight=1)
-        self.scan_button = ttk.Button(
-            frame,
-            text="结果预览",
-            style="Accent.TButton",
-            command=self._start_preview,
-        )
-        self.scan_button.grid(row=0, column=0, padx=(0, 8))
-        self.execute_button = ttk.Button(frame, text="确认并重命名", style="Secondary.TButton", command=self._confirm_execute, state="disabled")
-        self.execute_button.grid(row=0, column=1, padx=(0, 14))
+        frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        frame.columnconfigure(0, weight=1)
         self.stats_label = ttk.Label(
             frame,
             textvariable=self.stats_var,
             style="MatchStats.TLabel",
         )
-        self.stats_label.grid(row=0, column=2, sticky="w")
+        self.stats_label.grid(row=0, column=0, sticky="w")
         ttk.Label(frame, text="预览上限", style="Field.TLabel").grid(
-            row=0, column=3, padx=(8, 4)
+            row=0, column=1, padx=(8, 4)
         )
         self.preview_spin = ttk.Spinbox(
             frame,
@@ -913,18 +1178,16 @@ class BatchRenameApp:
             style="Modern.TSpinbox",
             justify="center",
         )
-        self.preview_spin.grid(row=0, column=4)
+        self.preview_spin.grid(row=0, column=2)
         ttk.Label(frame, text="条", style="Unit.TLabel").grid(
-            row=0, column=5, padx=(4, 0)
+            row=0, column=3, padx=(4, 0)
         )
-        ToolTip(self.scan_button, "只读取目录并生成预览，不会修改任何名称。修改规则后必须重新扫描。")
-        ToolTip(self.execute_button, "显示最终汇总并要求二次确认；只执行状态为“可修改”的项目。")
         ToolTip(self.preview_spin, "仅控制表格显示数量，不改变扫描统计和最终执行数量。")
         self._input_widgets.append(self.preview_spin)
 
     def _build_preview_frame(self, parent: ttk.Frame) -> None:
         frame = ttk.Frame(parent, style="Card.TFrame", padding=(8, 5))
-        frame.grid(row=3, column=0, sticky="nsew", pady=(0, 5))
+        frame.grid(row=1, column=0, sticky="nsew", pady=(0, 5))
         self.result_card = frame
         frame.rowconfigure(1, weight=1)
         frame.columnconfigure(0, weight=1)
@@ -959,12 +1222,12 @@ class BatchRenameApp:
             "detail": "说明",
         }
         widths = {
-            "kind": 56,
-            "parent": 190,
-            "old": 125,
-            "new": 135,
-            "status": 82,
-            "detail": 165,
+            "kind": 52,
+            "parent": 135,
+            "old": 100,
+            "new": 110,
+            "status": 72,
+            "detail": 110,
         }
         for column in columns:
             tree.heading(column, text=headings[column])
@@ -1016,13 +1279,11 @@ class BatchRenameApp:
 
     def _build_progress_frame(self, parent: ttk.Frame) -> None:
         frame = ttk.Frame(parent, style="Card.TFrame", padding=(7, 4))
-        frame.grid(row=4, column=0, sticky="ew")
+        frame.grid(row=2, column=0, sticky="ew")
         frame.columnconfigure(0, weight=1)
         self.progress = ttk.Progressbar(frame, mode="determinate", maximum=100, style="Modern.Horizontal.TProgressbar")
         self.progress.grid(row=0, column=0, sticky="ew", padx=(0, 8))
         ttk.Label(frame, textvariable=self.progress_text_var, width=42).grid(row=0, column=1, sticky="e")
-        self.details_button = ttk.Button(frame, text="结果详情", style="Secondary.TButton", command=self._show_execution_details, state="disabled")
-        self.details_button.grid(row=0, column=2, padx=(8, 0))
         status = ttk.Label(
             self.root,
             textvariable=self.status_var,
@@ -1156,7 +1417,7 @@ class BatchRenameApp:
         self._last_matches = None
         self._last_scan = None
         self._last_execution = None
-        self.details_button.configure(state="disabled")
+        self.feature_menu.entryconfigure(self.result_details_menu_index, state="disabled")
         self._set_busy(True)
         self.progress.configure(mode="indeterminate")
         self.progress.start(12)
@@ -1339,9 +1600,9 @@ class BatchRenameApp:
             self.new_name_overlay.schedule()
 
     def _sync_command_states(self) -> None:
-        if not hasattr(self, "scan_button"):
+        if not hasattr(self, "preview_button"):
             return
-        self.scan_button.configure(
+        self.preview_button.configure(
             state=(
                 "normal"
                 if not self._busy and self._last_matches is not None
@@ -1358,12 +1619,9 @@ class BatchRenameApp:
         self.execute_button.configure(
             state="normal" if not self._busy and ready else "disabled"
         )
-        self.details_button.configure(
-            state=(
-                "normal"
-                if not self._busy and self._last_execution is not None
-                else "disabled"
-            )
+        self.feature_menu.entryconfigure(
+            self.result_details_menu_index,
+            state="normal" if not self._busy and self._last_execution is not None else "disabled",
         )
 
     def _confirm_execute(self) -> None:
@@ -1469,13 +1727,20 @@ class BatchRenameApp:
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy
         state = "disabled" if busy else "normal"
-        self.scan_button.configure(state=state)
+        self.preview_button.configure(state=state)
         for widget in self._input_widgets:
             widget.configure(state=state)
         if busy:
             self.execute_button.configure(state="disabled")
         self._update_depth_state()
         self._sync_command_states()
+
+    def _show_about(self) -> None:
+        messagebox.showinfo(
+            "关于批量重命名",
+            "批量重命名工具\n\n版本信息与完整产品说明将在关于窗口中展示。",
+            parent=self.root,
+        )
 
     def _show_execution_details(self) -> None:
         if self._last_execution is None:
