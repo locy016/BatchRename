@@ -570,6 +570,30 @@ class BatchRenameApp:
             background=[("active", "#DCE7EF"), ("disabled", "#EAF0F5")],
             foreground=[("disabled", "#99A5AF")],
         )
+        style.configure(
+            "WorkflowAccent.TButton",
+            background=colors["accent"],
+            foreground="#FFFFFF",
+            borderwidth=0,
+            padding=(8, 2),
+            font=("Microsoft YaHei UI", 9, "bold"),
+            focuscolor=colors["accent_hover"],
+        )
+        style.map(
+            "WorkflowAccent.TButton",
+            background=[("active", colors["accent_hover"]), ("disabled", "#A9C7C8")],
+            foreground=[("disabled", "#F3F6F6")],
+        )
+        style.configure(
+            "WorkflowSecondary.TButton",
+            background="#E1E9F0",
+            foreground=colors["navy"],
+            borderwidth=0,
+            padding=(8, 2),
+            font=("Microsoft YaHei UI", 8),
+            focuscolor="#C7D8E5",
+        )
+        style.map("WorkflowSecondary.TButton", background=[("active", "#D2E0E9")])
         style.configure("Header.TFrame", background=colors["navy"])
         style.configure("Card.TFrame", background=colors["card"], relief="flat")
         style.configure(
@@ -886,7 +910,7 @@ class BatchRenameApp:
         self.root.bind("<F1>", lambda _event: self._show_help())
 
     def _build_workflow_rail(self, parent: ttk.Frame) -> None:
-        rail = ttk.Frame(parent, style="Workflow.TFrame", width=270, padding=(12, 10))
+        rail = ttk.Frame(parent, style="Workflow.TFrame", width=270, padding=(12, 6))
         rail.grid(row=0, column=0, sticky="ns", padx=(0, 7))
         rail.grid_propagate(False)
         rail.columnconfigure(0, weight=1)
@@ -895,7 +919,7 @@ class BatchRenameApp:
         self.workflow_rail = rail
 
         ttk.Label(rail, text="重命名流程", style="WorkflowTitle.TLabel").grid(
-            row=0, column=0, columnspan=2, sticky="w", pady=(0, 8)
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 4)
         )
         self.root_directory_label = ttk.Label(
             rail, text="1  选择目录", style="WorkflowTitle.TLabel"
@@ -904,11 +928,11 @@ class BatchRenameApp:
         self.directory_entry = ttk.Entry(
             rail, textvariable=self.directory_var, style="Modern.TEntry"
         )
-        self.directory_entry.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 4), ipady=3)
+        self.directory_entry.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(2, 2))
         self.directory_select_button = ttk.Button(
-            rail, text="选择目录…", style="Secondary.TButton", command=self._choose_directory
+            rail, text="选择目录…", style="WorkflowSecondary.TButton", command=self._choose_directory
         )
-        self.directory_select_button.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 9))
+        self.directory_select_button.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 5))
 
         ttk.Label(rail, text="2  查找规则", style="WorkflowTitle.TLabel").grid(
             row=4, column=0, columnspan=2, sticky="w"
@@ -920,7 +944,7 @@ class BatchRenameApp:
             value=False,
             style="Workflow.TRadiobutton",
         )
-        self.plain_mode_radio.grid(row=5, column=0, sticky="w", pady=(3, 2))
+        self.plain_mode_radio.grid(row=5, column=0, sticky="w", pady=(1, 0))
         self.regex_mode_radio = ttk.Radiobutton(
             rail,
             text="正则表达式",
@@ -928,7 +952,7 @@ class BatchRenameApp:
             value=True,
             style="Workflow.TRadiobutton",
         )
-        self.regex_mode_radio.grid(row=5, column=1, sticky="w", pady=(3, 2))
+        self.regex_mode_radio.grid(row=5, column=1, sticky="w", pady=(1, 0))
         self.search_field_label = ttk.Label(
             rail, text="查找内容", style="WorkflowHint.TLabel"
         )
@@ -936,11 +960,11 @@ class BatchRenameApp:
         self.search_entry = ttk.Entry(
             rail, textvariable=self.search_var, style="Modern.TEntry"
         )
-        self.search_entry.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(3, 4), ipady=3)
+        self.search_entry.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(2, 2))
         self.search_button = ttk.Button(
-            rail, text="扫描", style="Secondary.TButton", command=self._start_search
+            rail, text="扫描", style="WorkflowSecondary.TButton", command=self._start_search
         )
-        self.search_button.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(0, 9))
+        self.search_button.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(0, 5))
 
         self.replacement_field_label = ttk.Label(
             rail, text="3  替换为", style="WorkflowTitle.TLabel"
@@ -949,15 +973,15 @@ class BatchRenameApp:
         self.replacement_entry = ttk.Entry(
             rail, textvariable=self.replacement_var, style="Modern.TEntry"
         )
-        self.replacement_entry.grid(row=10, column=0, columnspan=2, sticky="ew", pady=(4, 4), ipady=3)
+        self.replacement_entry.grid(row=10, column=0, columnspan=2, sticky="ew", pady=(2, 2))
         self.preview_button = ttk.Button(
-            rail, text="结果预览", style="Accent.TButton", command=self._start_preview
+            rail, text="结果预览", style="WorkflowAccent.TButton", command=self._start_preview
         )
-        self.preview_button.grid(row=11, column=0, columnspan=2, sticky="ew", pady=(0, 7))
+        self.preview_button.grid(row=11, column=0, columnspan=2, sticky="ew", pady=(0, 3))
         self.execute_button = ttk.Button(
             rail,
             text="确认执行",
-            style="Secondary.TButton",
+            style="WorkflowSecondary.TButton",
             command=self._confirm_execute,
             state="disabled",
         )
@@ -969,14 +993,14 @@ class BatchRenameApp:
             wraplength=238,
             justify="left",
         )
-        self.rule_feedback_label.grid(row=13, column=0, columnspan=2, sticky="ew", pady=(7, 0))
+        self.rule_feedback_label.grid(row=13, column=0, columnspan=2, sticky="ew", pady=(2, 0))
 
         self.regex_templates_button = ttk.Button(
-            rail, text="⌘  正则模板", style="Secondary.TButton", command=self._show_regex_examples
+            rail, text="⌘  正则模板", style="WorkflowSecondary.TButton", command=self._show_regex_examples
         )
         self.regex_templates_button.grid(row=15, column=0, sticky="ew", padx=(0, 3), pady=(8, 0))
         self.settings_tool_button = ttk.Button(
-            rail, text="⚙  设置", style="Secondary.TButton", command=self._show_settings
+            rail, text="⚙  设置", style="WorkflowSecondary.TButton", command=self._show_settings
         )
         self.settings_tool_button.grid(row=15, column=1, sticky="ew", padx=(3, 0), pady=(8, 0))
 
@@ -1401,25 +1425,6 @@ class BatchRenameApp:
             style="MatchStats.TLabel",
         )
         self.stats_label.grid(row=0, column=0, sticky="w")
-        ttk.Label(frame, text="预览上限", style="Field.TLabel").grid(
-            row=0, column=1, padx=(8, 4)
-        )
-        self.preview_spin = ttk.Spinbox(
-            frame,
-            from_=1,
-            to=100,
-            width=6,
-            textvariable=self.preview_limit_var,
-            command=self._render_preview,
-            style="Modern.TSpinbox",
-            justify="center",
-        )
-        self.preview_spin.grid(row=0, column=2)
-        ttk.Label(frame, text="条", style="Unit.TLabel").grid(
-            row=0, column=3, padx=(4, 0)
-        )
-        ToolTip(self.preview_spin, "仅控制表格显示数量，不改变扫描统计和最终执行数量。")
-        self._input_widgets.append(self.preview_spin)
 
     def _build_preview_frame(self, parent: ttk.Frame) -> None:
         frame = ttk.Frame(parent, style="Card.TFrame", padding=(8, 5))
@@ -1431,11 +1436,28 @@ class BatchRenameApp:
         heading.grid(row=0, column=0, sticky="ew", pady=(0, 5))
         heading.columnconfigure(1, weight=1)
         ttk.Label(heading, text="匹配结果", style="CardTitle.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(
+        ttk.Label(heading, text="显示", style="Field.TLabel").grid(
+            row=0, column=2, padx=(8, 4)
+        )
+        self.preview_spin = ttk.Spinbox(
             heading,
-            text="文件夹优先，同类按名称自然排序；红色项目不会执行。",
-            style="Hint.TLabel",
-        ).grid(row=0, column=1, sticky="e")
+            from_=1,
+            to=100,
+            width=5,
+            textvariable=self.preview_limit_var,
+            command=self._render_preview,
+            style="Modern.TSpinbox",
+            justify="center",
+        )
+        self.preview_spin.grid(row=0, column=3)
+        ttk.Label(heading, text="条", style="Unit.TLabel").grid(
+            row=0, column=4, padx=(4, 0)
+        )
+        ToolTip(
+            self.preview_spin,
+            "仅控制表格显示数量，不改变完整匹配统计和最终执行数量。文件夹优先，同类按名称自然排序。",
+        )
+        self._input_widgets.append(self.preview_spin)
         self.result_tree = self._create_tree(frame)
 
     def _create_tree(self, parent: ttk.Frame) -> ttk.Treeview:
@@ -1761,7 +1783,7 @@ class BatchRenameApp:
         self.progress_text_var.set(f"预览完成：已检查 {summary['matched_total']} 个匹配名称")
         self._render_preview()
         if summary["ready_total"]:
-            self.status_var.set("预览已生成。请检查新名称和状态，确认无误后点击“确认并重命名”。")
+            self.status_var.set("预览已生成。请检查新名称和状态，确认无误后点击“确认执行”。")
         else:
             if summary["matched_total"]:
                 self.status_var.set(
@@ -2285,12 +2307,12 @@ class BatchRenameApp:
     def _show_help(self) -> None:
         help_text = """使用流程
 
-1. 选择根目录。根目录本身不会改名，只处理其内部项目。
-2. 保持“全部层级”，或限制为 1–N 层。第 1 层是根目录中的直接子项。
-3. 输入查找内容和替换内容，选择处理文件夹、文件或两者。
-4. 在查找框按 Enter、点击框后的“扫描”，或点击“结果预览”。三种方式都会使用当前全部规则，只读取名称，不会修改磁盘。
-5. 在统一结果表中按“类型、所在目录、原名称、新名称、状态、说明”检查结果；文件夹排在文件之前，同类项目按名称排列。新名称使用青绿色便于对照，长内容被缩短时，把鼠标停在对应位置可查看完整文字。
-6. 点击“确认并重命名”，核对汇总并二次确认。执行期间会显示逐项进度。
+1. 在左侧选择根目录。根目录本身不会改名，只处理其内部项目。
+2. 选择普通文本或正则表达式，填写查找内容，点击“扫描”或在查找框按 Enter。扫描只列出名称匹配项，不要求替换内容，也不会修改磁盘。
+3. 填写“替换为”，点击“结果预览”或在替换框按 Enter。预览使用刚才的匹配快照计算新名称和安全状态，不会再次读取目录。
+4. 在统一结果表中按“类型、所在目录、原名称、新名称、状态、说明”检查结果；文件夹排在文件之前，同类项目按名称排列。新名称使用青绿色便于对照，长内容被缩短时，把鼠标停在对应位置可查看完整文字。
+5. 点击“确认执行”，核对汇总并二次确认。执行期间会显示逐项进度，完成后可从“功能 → 结果详情”查看记录。
+6. 层级、文件夹/文件范围和扩展名保护位于左下角“设置”；正则模板与设置互斥显示，再次点击、按 Esc 或点击结果区会收起。
 
 普通文本模式
 
@@ -2298,11 +2320,11 @@ class BatchRenameApp:
 
 正则表达式模式
 
-不熟悉语法时，点击主窗口的“正则模板”，按日期、编号、标签、文本清理、片段或扩展名选择常见场景。模板会先显示处理前后效果；点击“一键应用此规则”只会填写主窗口，不会立即修改文件。输入的表达式或捕获组引用无效时，规则说明区会立即提示。
+不熟悉语法时，点击左下角“正则模板”，按日期、编号、标签、文本清理、片段或扩展名选择常见场景。模板会先显示处理前后效果；点击“一键应用此规则”只会填写主窗口，不会立即修改文件。输入的表达式或捕获组引用无效时，规则说明区会立即提示。
 
 文件扩展名
 
-默认只修改文件主名称，保护最后一个扩展名。例如查找 jpg 不会改变“照片.jpg”的扩展名。只有明确勾选“包含扩展名”后，才会处理完整文件名。
+默认只修改文件主名称，保护最后一个扩展名。例如查找 jpg 不会改变“照片.jpg”的扩展名。只有在“设置”中明确勾选“允许修改扩展名”后，才会处理完整文件名。
 
 安全与跳过策略
 

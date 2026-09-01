@@ -420,6 +420,22 @@ def test_left_workflow_is_ordered_and_statistics_stay_on_one_line(tk_window):
     assert int(app.workflow_rail.cget("width")) <= 280
 
 
+def test_bottom_tool_buttons_fit_inside_960_by_680_workflow_rail(tk_window):
+    previous_scaling = float(tk_window.tk.call("tk", "scaling"))
+    try:
+        tk_window.tk.call("tk", "scaling", 2.0)
+        app = BatchRenameApp(tk_window)
+        tk_window.deiconify()
+        tk_window.update()
+
+        for button in (app.regex_templates_button, app.settings_tool_button):
+            assert button.winfo_ismapped()
+            assert button.winfo_y() + button.winfo_height() <= app.workflow_rail.winfo_height()
+        assert app.stats_label.winfo_width() >= app.stats_label.winfo_reqwidth()
+    finally:
+        tk_window.tk.call("tk", "scaling", previous_scaling)
+
+
 def test_horizontal_scrollbar_hides_when_everything_is_visible(tk_window):
     frame = tk.Frame(tk_window)
     frame.grid()
