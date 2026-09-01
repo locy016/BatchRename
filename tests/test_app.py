@@ -158,7 +158,9 @@ def test_summary_counts_categories_and_ready_items():
 
 
 def test_busy_state_locks_every_rule_and_scope_input(tk_window):
-    app = BatchRenameApp(tk_window)
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
+    )
 
     app._set_busy(True)
 
@@ -186,7 +188,9 @@ def test_search_and_preview_commands_are_separate(tk_window, monkeypatch):
     calls = []
     monkeypatch.setattr(BatchRenameApp, "_start_search", lambda self: calls.append("search"))
     monkeypatch.setattr(BatchRenameApp, "_start_preview", lambda self: calls.append("preview"))
-    app = BatchRenameApp(tk_window)
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
+    )
 
     assert app.search_button.cget("text") == "扫描"
     assert app.preview_button.cget("text") == "结果预览"
@@ -522,6 +526,82 @@ def test_responsive_mode_transitions_keep_rule_widgets_and_state_instances(tk_wi
     assert (app.search_var.get(), app.replacement_var.get()) == ("项目", "归档")
 
 
+def test_compact_navigation_reuses_the_workflow_rail_as_a_drawer(tk_window):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
+    )
+    search_entry = app.search_entry
+    tk_window.deiconify()
+    tk_window.update()
+
+    assert app.compact_navigation.winfo_manager() == "grid"
+    assert app.workflow_rail.winfo_manager() == ""
+
+    app.workflow_nav_button.invoke()
+    tk_window.update()
+    assert app.workflow_drawer_open is True
+    assert app.workflow_rail.winfo_manager() == "place"
+    assert app.search_entry is search_entry
+
+    app.workflow_nav_button.invoke()
+    assert app.workflow_drawer_open is False
+    assert app.workflow_rail.winfo_manager() == ""
+
+
+def test_compact_drawer_closes_from_escape_result_click_and_other_tools(tk_window):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
+    )
+    tk_window.deiconify()
+    tk_window.update()
+
+    app.workflow_nav_button.invoke()
+    tk_window.focus_force()
+    tk_window.update()
+    tk_window.event_generate("<Escape>")
+    tk_window.update()
+    assert app.workflow_drawer_open is False
+
+    app.workflow_nav_button.invoke()
+    app.result_tree.event_generate("<Button-1>", x=10, y=10)
+    tk_window.update()
+    assert app.workflow_drawer_open is False
+
+    app.workflow_nav_button.invoke()
+    app.compact_templates_button.invoke()
+    tk_window.update()
+    assert app.workflow_drawer_open is False
+    assert app.active_tool_panel == "templates"
+
+    app.workflow_nav_button.invoke()
+    app.compact_settings_button.invoke()
+    tk_window.update()
+    assert app.workflow_drawer_open is False
+    assert app.active_tool_panel == "settings"
+
+
+def test_leaving_compact_mode_restores_full_rail_and_keeps_preview_state(tk_window):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
+    )
+    app.search_var.set("项目")
+    app.replacement_var.set("归档")
+    app._last_matches = match_result()
+    app._last_scan = scan_result()
+    app.workflow_nav_button.invoke()
+
+    app._apply_responsive_layout(1280, 800)
+
+    assert app.current_layout_mode == "standard"
+    assert app.workflow_drawer_open is False
+    assert app.compact_navigation.winfo_manager() == ""
+    assert app.workflow_rail.winfo_manager() == "grid"
+    assert app.search_var.get() == "项目"
+    assert app.replacement_var.get() == "归档"
+    assert app._last_matches is not None
+    assert app._last_scan is not None
+
+
 def test_left_workflow_is_ordered_and_statistics_stay_on_one_line(tk_window):
     app = BatchRenameApp(
         tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
@@ -551,13 +631,19 @@ def test_bottom_tool_buttons_fit_inside_960_by_680_workflow_rail(tk_window):
     previous_scaling = float(tk_window.tk.call("tk", "scaling"))
     try:
         tk_window.tk.call("tk", "scaling", 2.0)
-        app = BatchRenameApp(tk_window)
+        app = BatchRenameApp(
+            tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
+        )
         tk_window.deiconify()
+        tk_window.update()
+        app.workflow_nav_button.invoke()
         tk_window.update()
 
         for button in (app.regex_templates_button, app.settings_tool_button):
             assert button.winfo_ismapped()
             assert button.winfo_y() + button.winfo_height() <= app.workflow_rail.winfo_height()
+        assert app.workflow_rail.winfo_x() + app.workflow_rail.winfo_width() <= app.body_frame.winfo_width()
+        assert app.workflow_rail.winfo_y() + app.workflow_rail.winfo_height() <= app.body_frame.winfo_height()
         assert app.stats_label.winfo_width() >= app.stats_label.winfo_reqwidth()
         app._toggle_tool_panel("templates")
         tk_window.update()
@@ -569,8 +655,28 @@ def test_bottom_tool_buttons_fit_inside_960_by_680_workflow_rail(tk_window):
             app.regex_apply_button.winfo_rooty() + app.regex_apply_button.winfo_height()
             <= app.templates_panel.winfo_rooty() + app.templates_panel.winfo_height()
         )
+        assert app.templates_panel.winfo_x() + app.templates_panel.winfo_width() <= app.body_frame.winfo_width()
+        app._toggle_tool_panel("settings")
+        tk_window.update()
+        assert app.settings_panel.winfo_x() + app.settings_panel.winfo_width() <= app.body_frame.winfo_width()
+        assert app.settings_panel.winfo_y() + app.settings_panel.winfo_height() <= app.body_frame.winfo_height()
     finally:
         tk_window.tk.call("tk", "scaling", previous_scaling)
+
+
+def test_busy_compact_workflow_can_close_but_cannot_be_reopened(tk_window):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
+    )
+    app.workflow_nav_button.invoke()
+    assert app.workflow_drawer_open is True
+
+    app._set_busy(True)
+    app.workflow_nav_button.invoke()
+    assert app.workflow_drawer_open is False
+
+    app.workflow_nav_button.invoke()
+    assert app.workflow_drawer_open is False
 
 
 def test_horizontal_scrollbar_hides_when_everything_is_visible(tk_window):

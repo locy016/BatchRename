@@ -702,6 +702,21 @@ class BatchRenameApp:
         style.configure("App.TFrame", background=colors["background"])
         style.configure("Workflow.TFrame", background="#EAF0F5")
         style.configure("WorkflowCard.TFrame", background="#EAF0F5")
+        style.configure("CompactNav.TFrame", background="#17324D")
+        style.configure(
+            "CompactNav.TButton",
+            background="#17324D",
+            foreground="#FFFFFF",
+            borderwidth=0,
+            relief="flat",
+            padding=(5, 9),
+            font=("Microsoft YaHei UI", 12, "bold"),
+        )
+        style.map(
+            "CompactNav.TButton",
+            background=[("active", "#284B6B"), ("pressed", "#0F8B8D")],
+            foreground=[("disabled", "#8EA0B0")],
+        )
         style.configure(
             "WorkflowTitle.TLabel",
             background="#EAF0F5",
@@ -1036,9 +1051,53 @@ class BatchRenameApp:
         body.rowconfigure(0, weight=1)
         body.columnconfigure(1, weight=1)
         self.body_frame = body
+        self._build_compact_navigation(body)
         self._build_workflow_rail(body)
         self._build_result_workspace(body)
         self._build_tool_panels(body)
+
+    def _build_compact_navigation(self, parent: ttk.Frame) -> None:
+        navigation = ttk.Frame(
+            parent,
+            style="CompactNav.TFrame",
+            width=self.RAIL_WIDTHS["compact"],
+            padding=(6, 8),
+        )
+        navigation.grid(row=0, column=0, sticky="ns", padx=(0, 7))
+        navigation.grid_propagate(False)
+        navigation.columnconfigure(0, weight=1)
+        navigation.rowconfigure(2, weight=1)
+        self.compact_navigation = navigation
+        self.workflow_drawer_open = False
+
+        self.workflow_nav_button = ttk.Button(
+            navigation,
+            text="☰",
+            style="CompactNav.TButton",
+            command=self._toggle_workflow_drawer,
+        )
+        self.workflow_nav_button.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        self.compact_templates_button = ttk.Button(
+            navigation,
+            text=".*",
+            style="CompactNav.TButton",
+            command=self._show_regex_examples,
+        )
+        self.compact_templates_button.grid(row=3, column=0, sticky="ew", pady=(0, 6))
+        self.compact_settings_button = ttk.Button(
+            navigation,
+            text="⚙",
+            style="CompactNav.TButton",
+            command=self._show_settings,
+        )
+        self.compact_settings_button.grid(row=4, column=0, sticky="ew")
+        self._input_widgets.extend(
+            [self.compact_templates_button, self.compact_settings_button]
+        )
+        ToolTip(self.workflow_nav_button, "展开或收起完整重命名流程。")
+        ToolTip(self.compact_templates_button, "打开常用正则模板。")
+        ToolTip(self.compact_settings_button, "打开扫描与预览设置。")
+        navigation.grid_remove()
 
     def _schedule_responsive_layout(self, event: tk.Event) -> None:
         """防抖处理主窗口缩放，避免拖动过程中连续重排。"""
@@ -1070,11 +1129,56 @@ class BatchRenameApp:
         self.current_layout_mode = mode
         self._last_responsive_size = (width, height)
         self.workflow_rail.configure(width=self.RAIL_WIDTHS[mode])
+        if mode == "compact":
+            self.compact_navigation.grid()
+            if self.workflow_drawer_open:
+                self._position_workflow_drawer()
+            else:
+                self.workflow_rail.grid_remove()
+        else:
+            self._close_workflow_drawer()
+            self.compact_navigation.grid_remove()
+            self.workflow_rail.configure(width=self.RAIL_WIDTHS[mode])
+            self.workflow_rail.grid(row=0, column=0, sticky="ns", padx=(0, 7))
         for column, column_width in self.RESULT_COLUMN_POLICIES[mode].items():
             min_width = 52 if column == "kind" else min(72, column_width)
             self.result_tree.column(column, width=column_width, minwidth=min_width)
         self.new_name_overlay.schedule()
         self._position_active_tool_panel()
+
+    def _toggle_workflow_drawer(self) -> None:
+        """在紧凑模式下展开或收起原有工作流控件。"""
+
+        if self.current_layout_mode != "compact":
+            return
+        if self.workflow_drawer_open:
+            self._close_workflow_drawer()
+            return
+        if self._busy:
+            return
+        self._close_tool_panel()
+        self.workflow_drawer_open = True
+        self._position_workflow_drawer()
+
+    def _position_workflow_drawer(self) -> None:
+        if not self.workflow_drawer_open or self.current_layout_mode != "compact":
+            return
+        self.root.update_idletasks()
+        body_height = max(1, self.body_frame.winfo_height())
+        body_width = max(1, self.body_frame.winfo_width())
+        x = self.RAIL_WIDTHS["compact"] + 7
+        width = min(300, max(1, body_width - x))
+        self.workflow_rail.configure(width=width)
+        self.workflow_rail.place(x=x, y=0, width=width, height=body_height)
+        self.workflow_rail.lift()
+
+    def _close_workflow_drawer(self) -> None:
+        self.workflow_rail.place_forget()
+        self.workflow_drawer_open = False
+
+    def _close_overlays(self) -> None:
+        self._close_workflow_drawer()
+        self._close_tool_panel()
 
     def _build_top_menu(self) -> None:
         self.top_menu = tk.Menu(self.root, tearoff=False)
@@ -1387,7 +1491,7 @@ class BatchRenameApp:
         self.regex_template_list.bind("<Double-Button-1>", lambda _event: self.regex_apply_button.invoke())
         self._filter_regex_templates()
 
-        self.root.bind("<Escape>", lambda _event: self._close_tool_panel())
+        self.root.bind("<Escape>", lambda _event: self._close_overlays())
         for widget in (
             self.result_workspace,
             self.result_card,
@@ -1396,15 +1500,16 @@ class BatchRenameApp:
             self.progress,
         ):
             widget.bind(
-                "<Button-1>", lambda _event: self._close_tool_panel(), add="+"
+                "<Button-1>", lambda _event: self._close_overlays(), add="+"
             )
 
     def _toggle_tool_panel(self, name: str) -> None:
-        if self._busy:
-            return
         if self.active_tool_panel == name:
             self._close_tool_panel()
             return
+        if self._busy:
+            return
+        self._close_workflow_drawer()
         self._close_tool_panel()
         self.active_tool_panel = name
         self._position_active_tool_panel()
