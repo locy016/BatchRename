@@ -34,6 +34,31 @@ class ScanOptions:
     rename_extension: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class MatchOptions:
+    root: Path
+    search: str
+    use_regex: bool = False
+    max_depth: int | None = None
+    include_files: bool = True
+    include_dirs: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class MatchedItem:
+    source: Path
+    kind: ItemKind
+
+
+@dataclass(slots=True)
+class MatchResult:
+    root: Path
+    search: str
+    use_regex: bool
+    items: list[MatchedItem] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+
 @dataclass(slots=True)
 class RenameCandidate:
     source: Path

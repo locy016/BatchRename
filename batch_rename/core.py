@@ -14,6 +14,9 @@ from .models import (
     ExecutionRecord,
     ExecutionResult,
     ItemKind,
+    MatchedItem,
+    MatchOptions,
+    MatchResult,
     ProgressCallback,
     RenameCandidate,
     ScanOptions,
@@ -110,6 +113,75 @@ class RenameRule:
 
 def _path_key(path: Path) -> str:
     return os.path.normcase(os.path.abspath(path))
+
+
+def search_matches(options: MatchOptions) -> MatchResult:
+    """只读取目录并返回名称符合查找规则的项目快照。"""
+
+    root = Path(options.root).expanduser().resolve()
+    if not root.is_dir():
+        raise ScanError("所选目录不存在或不是文件夹")
+    if options.max_depth is not None and options.max_depth < 1:
+        raise ScanError("扫描层级必须是大于或等于 1 的整数")
+    if not options.include_files and not options.include_dirs:
+        raise ScanError("请至少选择文件夹或文件中的一类")
+
+    rule = RenameRule(options.search, "", use_regex=options.use_regex)
+    result = MatchResult(
+        root=root,
+        search=options.search,
+        use_regex=options.use_regex,
+    )
+    pending: list[tuple[Path, int]] = [(root, 1)]
+
+    while pending:
+        parent, child_depth = pending.pop()
+        try:
+            with os.scandir(parent) as iterator:
+                entries = sorted(
+                    iterator,
+                    key=lambda item: item.name.casefold(),
+                    reverse=True,
+                )
+        except OSError as exc:
+            result.errors.append(f"无法读取 {parent}：{exc}")
+            continue
+
+        for entry in entries:
+            try:
+                if entry.is_symlink():
+                    continue
+                is_dir = entry.is_dir(follow_symlinks=False)
+                is_file = entry.is_file(follow_symlinks=False)
+            except OSError as exc:
+                result.errors.append(f"无法检查 {entry.path}：{exc}")
+                continue
+
+            source = Path(entry.path)
+            if is_dir and (
+                options.max_depth is None or child_depth < options.max_depth
+            ):
+                pending.append((source, child_depth + 1))
+
+            selected = (is_dir and options.include_dirs) or (
+                is_file and options.include_files
+            )
+            if selected and rule.matches(entry.name):
+                result.items.append(
+                    MatchedItem(
+                        source=source,
+                        kind=ItemKind.DIRECTORY if is_dir else ItemKind.FILE,
+                    )
+                )
+
+    result.items.sort(
+        key=lambda item: (
+            item.kind is ItemKind.FILE,
+            str(item.source.parent).casefold(),
+            item.source.name.casefold(),
+        )
+    )
+    return result
 
 
 def scan(options: ScanOptions) -> ScanResult:

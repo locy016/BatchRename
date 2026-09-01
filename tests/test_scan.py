@@ -2,14 +2,49 @@ from pathlib import Path
 
 import pytest
 
-from batch_rename.core import ScanError, scan
-from batch_rename.models import CandidateStatus, ItemKind, ScanOptions
+from batch_rename.core import RuleError, ScanError, scan, search_matches
+from batch_rename.models import CandidateStatus, ItemKind, MatchOptions, ScanOptions
 
 
 def touch(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("测试", encoding="utf-8")
     return path
+
+
+def test_search_matches_does_not_require_replacement(tmp_path):
+    source = touch(tmp_path / "项目合同.docx")
+
+    result = search_matches(MatchOptions(tmp_path, "项目"))
+
+    assert [item.source for item in result.items] == [source]
+    assert result.search == "项目"
+    assert result.use_regex is False
+
+
+def test_search_matches_validates_regex_without_replacement(tmp_path):
+    with pytest.raises(RuleError, match="正则表达式"):
+        search_matches(MatchOptions(tmp_path, "(", use_regex=True))
+
+
+def test_search_matches_respects_object_type_and_depth(tmp_path):
+    folder = tmp_path / "项目一级"
+    folder.mkdir()
+    nested = touch(folder / "项目二级.txt")
+    direct = touch(tmp_path / "项目直属.txt")
+
+    result = search_matches(
+        MatchOptions(
+            tmp_path,
+            "项目",
+            max_depth=1,
+            include_files=True,
+            include_dirs=False,
+        )
+    )
+
+    assert [item.source for item in result.items] == [direct]
+    assert nested not in {item.source for item in result.items}
 
 
 def test_unlimited_depth_scans_files_and_directories(tmp_path):
