@@ -275,7 +275,7 @@ def test_escape_and_workspace_click_close_floating_tools(tk_window):
     assert app.active_tool_panel is None
 
     app._toggle_tool_panel("templates")
-    app.result_workspace.event_generate("<Button-1>")
+    app.result_tree.event_generate("<Button-1>", x=10, y=10)
     tk_window.update()
     assert app.active_tool_panel is None
 

@@ -1196,7 +1196,15 @@ class BatchRenameApp:
         self._filter_regex_templates()
 
         self.root.bind("<Escape>", lambda _event: self._close_tool_panel())
-        self.result_workspace.bind("<Button-1>", lambda _event: self._close_tool_panel())
+        for widget in (
+            self.result_workspace,
+            self.result_card,
+            self.result_tree,
+            self.stats_label,
+        ):
+            widget.bind(
+                "<Button-1>", lambda _event: self._close_tool_panel(), add="+"
+            )
 
     def _toggle_tool_panel(self, name: str) -> None:
         if self.active_tool_panel == name:
