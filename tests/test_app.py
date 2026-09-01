@@ -474,8 +474,58 @@ def test_default_layout_fits_960_by_680_and_expands_the_result_area(tk_window):
     assert app.result_card.grid_rowconfigure(1)["weight"] > 0
 
 
+@pytest.mark.parametrize(
+    ("width", "mode", "rail_width", "column_widths"),
+    [
+        (960, "compact", 64, {"kind": 52, "parent": 96, "old": 88, "new": 96, "status": 72, "detail": 88}),
+        (1280, "standard", 270, {"kind": 52, "parent": 135, "old": 100, "new": 110, "status": 72, "detail": 110}),
+        (1600, "spacious", 300, {"kind": 64, "parent": 250, "old": 180, "new": 190, "status": 96, "detail": 220}),
+    ],
+)
+def test_responsive_modes_resize_the_rail_and_apply_result_column_policies(
+    tk_window, width, mode, rail_width, column_widths
+):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
+    )
+
+    app._apply_responsive_layout(width, 800)
+
+    assert app.current_layout_mode == mode
+    assert int(app.workflow_rail.cget("width")) == rail_width
+    assert {
+        column: int(app.result_tree.column(column, "width"))
+        for column in app.result_tree["columns"]
+    } == column_widths
+    for essential_column in ("kind", "old", "new", "status"):
+        assert int(app.result_tree.column(essential_column, "width")) > 0
+
+
+def test_responsive_mode_transitions_keep_rule_widgets_and_state_instances(tk_window):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
+    )
+    search_entry = app.search_entry
+    replacement_entry = app.replacement_entry
+    search_var = app.search_var
+    replacement_var = app.replacement_var
+    app.search_var.set("项目")
+    app.replacement_var.set("归档")
+
+    for width in (960, 1280, 1600, 960):
+        app._apply_responsive_layout(width, 800)
+
+    assert app.search_entry is search_entry
+    assert app.replacement_entry is replacement_entry
+    assert app.search_var is search_var
+    assert app.replacement_var is replacement_var
+    assert (app.search_var.get(), app.replacement_var.get()) == ("项目", "归档")
+
+
 def test_left_workflow_is_ordered_and_statistics_stay_on_one_line(tk_window):
-    app = BatchRenameApp(tk_window)
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
+    )
 
     assert app.preview_limit_var.get() == 100
     assert app.stats_var.get() == (

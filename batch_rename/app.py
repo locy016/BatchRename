@@ -596,6 +596,34 @@ class BatchRenameApp:
     """批量重命名主窗口。"""
 
     POLL_INTERVAL_MS = 80
+    RESPONSIVE_DELAY_MS = 120
+    RAIL_WIDTHS = {"compact": 64, "standard": 270, "spacious": 300}
+    RESULT_COLUMN_POLICIES = {
+        "compact": {
+            "kind": 52,
+            "parent": 96,
+            "old": 88,
+            "new": 96,
+            "status": 72,
+            "detail": 88,
+        },
+        "standard": {
+            "kind": 52,
+            "parent": 135,
+            "old": 100,
+            "new": 110,
+            "status": 72,
+            "detail": 110,
+        },
+        "spacious": {
+            "kind": 64,
+            "parent": 250,
+            "old": 180,
+            "new": 190,
+            "status": 96,
+            "detail": 220,
+        },
+    }
     COLORS = {
         "background": "#F3F6FA",
         "card": "#FFFFFF",
@@ -648,6 +676,9 @@ class BatchRenameApp:
         self._last_matches: MatchResult | None = None
         self._last_scan: ScanResult | None = None
         self._last_execution: ExecutionResult | None = None
+        self._responsive_after_id: str | None = None
+        self._last_responsive_size: tuple[int, int] | None = None
+        self.current_layout_mode = self.initial_window_layout.layout_mode
         self._app_icon: tk.PhotoImage | None = None
         self._header_icon: tk.PhotoImage | None = None
         self.dialogs = ManagedDialogs(self.root)
@@ -655,6 +686,8 @@ class BatchRenameApp:
         self._configure_style()
         self._load_application_icon()
         self._build_ui()
+        self._apply_responsive_layout(*self.initial_window_layout.size)
+        self.root.bind("<Configure>", self._schedule_responsive_layout, add="+")
         self._bind_change_tracking()
         self._update_depth_state()
         self._sync_command_states()
@@ -1007,6 +1040,42 @@ class BatchRenameApp:
         self._build_result_workspace(body)
         self._build_tool_panels(body)
 
+    def _schedule_responsive_layout(self, event: tk.Event) -> None:
+        """防抖处理主窗口缩放，避免拖动过程中连续重排。"""
+
+        if event.widget is not self.root:
+            return
+        if self._responsive_after_id is not None:
+            self.root.after_cancel(self._responsive_after_id)
+        width = max(MIN_WINDOW_WIDTH, int(event.width))
+        height = max(MIN_WINDOW_HEIGHT, int(event.height))
+        self._responsive_after_id = self.root.after(
+            self.RESPONSIVE_DELAY_MS,
+            lambda: self._apply_responsive_layout(width, height),
+        )
+
+    def _apply_responsive_layout(self, width: int, height: int) -> None:
+        """原地应用当前客户区的布局档位和结果列策略。"""
+
+        self._responsive_after_id = None
+        mode = layout_mode_for_width(width)
+        previous_size = self._last_responsive_size
+        if (
+            mode == self.current_layout_mode
+            and previous_size is not None
+            and abs(previous_size[0] - width) < 8
+            and abs(previous_size[1] - height) < 8
+        ):
+            return
+        self.current_layout_mode = mode
+        self._last_responsive_size = (width, height)
+        self.workflow_rail.configure(width=self.RAIL_WIDTHS[mode])
+        for column, column_width in self.RESULT_COLUMN_POLICIES[mode].items():
+            min_width = 52 if column == "kind" else min(72, column_width)
+            self.result_tree.column(column, width=column_width, minwidth=min_width)
+        self.new_name_overlay.schedule()
+        self._position_active_tool_panel()
+
     def _build_top_menu(self) -> None:
         self.top_menu = tk.Menu(self.root, tearoff=False)
         self.file_menu = tk.Menu(self.top_menu, tearoff=False)
@@ -1337,16 +1406,29 @@ class BatchRenameApp:
             self._close_tool_panel()
             return
         self._close_tool_panel()
-        panel = self.settings_panel if name == "settings" else self.templates_panel
+        self.active_tool_panel = name
+        self._position_active_tool_panel()
+
+    def _position_active_tool_panel(self) -> None:
+        """将当前浮动工具限制在主内容区域内并贴近侧栏。"""
+
+        if self.active_tool_panel is None:
+            return
+        panel = (
+            self.settings_panel
+            if self.active_tool_panel == "settings"
+            else self.templates_panel
+        )
         self.root.update_idletasks()
-        available_width = max(360, self.body_frame.winfo_width() - 285)
+        rail_width = self.RAIL_WIDTHS[self.current_layout_mode]
+        x = rail_width + 8
+        available_width = max(360, self.body_frame.winfo_width() - x)
         width = min(500, available_width - 16)
         body_height = max(1, self.body_frame.winfo_height())
         height = min(panel.winfo_reqheight(), max(1, body_height - 16))
         y = max(8, body_height - height - 8)
-        panel.place(x=278, y=y, width=width, height=height)
+        panel.place(x=x, y=y, width=width, height=height)
         panel.lift()
-        self.active_tool_panel = name
 
     def _close_tool_panel(self) -> None:
         self.settings_panel.place_forget()
