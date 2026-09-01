@@ -11,6 +11,7 @@ from batch_rename.app import (
     _tree_cell_content,
     calculate_window_layout,
     centered_dialog_geometry,
+    layout_mode_for_size,
     layout_mode_for_width,
     sorted_preview_items,
     summarize_candidates,
@@ -80,6 +81,8 @@ def test_main_exposes_callable_entrypoint():
         ((0, 0, 3440, 1440), "ultrawide", (1582, 979), "1582x979+929+230", "spacious"),
         ((0, 0, 5120, 1440), "ultrawide", (1664, 979), "1664x979+1728+230", "spacious"),
         ((0, 0, 1080, 1920), "portrait", (972, 1118), "972x1118+54+401", "compact"),
+        ((0, 0, 1440, 2560), "portrait", (1296, 1490), "1296x1490+72+535", "compact"),
+        ((0, 0, 2160, 3840), "portrait", (1944, 2236), "1944x2236+108+802", "compact"),
         ((-2560, 0, 0, 1440), "standard", (1280, 720), "1280x720+-1920+360", "standard"),
         ((100, 50, 900, 650), "standard", (960, 680), "960x680+100+50", "compact"),
     ],
@@ -101,6 +104,16 @@ def test_window_layout_classifies_and_centers_on_the_selected_work_area(
 )
 def test_layout_mode_uses_confirmed_client_width_breakpoints(width, expected):
     assert layout_mode_for_width(width) == expected
+
+
+@pytest.mark.parametrize(
+    ("size", "expected"),
+    [((1600, 800), "spacious"), ((1280, 800), "standard"), ((1600, 1800), "compact")],
+)
+def test_layout_mode_keeps_portrait_windows_compact_even_when_they_are_wide(
+    size, expected
+):
+    assert layout_mode_for_size(*size) == expected
 
 
 @pytest.mark.parametrize(
@@ -619,6 +632,18 @@ def test_leaving_compact_mode_restores_full_rail_and_keeps_preview_state(tk_wind
     assert app._last_scan is not None
 
 
+def test_tall_high_resolution_window_uses_compact_navigation(tk_window):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
+    )
+
+    app._apply_responsive_layout(1600, 1800)
+
+    assert app.current_layout_mode == "compact"
+    assert app.compact_navigation.winfo_manager() == "grid"
+    assert app.workflow_rail.winfo_manager() == ""
+
+
 def test_left_workflow_is_ordered_and_statistics_stay_on_one_line(tk_window):
     app = BatchRenameApp(
         tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
@@ -644,10 +669,11 @@ def test_left_workflow_is_ordered_and_statistics_stay_on_one_line(tk_window):
     assert int(app.workflow_rail.cget("width")) <= 280
 
 
-def test_bottom_tool_buttons_fit_inside_960_by_680_workflow_rail(tk_window):
+@pytest.mark.parametrize("scaling", [1.0, 1.5, 2.0])
+def test_bottom_tool_buttons_fit_inside_960_by_680_workflow_rail(tk_window, scaling):
     previous_scaling = float(tk_window.tk.call("tk", "scaling"))
     try:
-        tk_window.tk.call("tk", "scaling", 2.0)
+        tk_window.tk.call("tk", "scaling", scaling)
         app = BatchRenameApp(
             tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
         )

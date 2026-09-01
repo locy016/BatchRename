@@ -51,6 +51,14 @@ def layout_mode_for_width(width: int) -> str:
     return "compact"
 
 
+def layout_mode_for_size(width: int, height: int) -> str:
+    """根据客户区尺寸选择布局，竖向窗口始终使用紧凑工作台。"""
+
+    if width / max(1, height) < 1.15:
+        return "compact"
+    return layout_mode_for_width(width)
+
+
 @dataclass(frozen=True, slots=True)
 class WindowLayout:
     """一次初始窗口布局计算的不可变结果。"""
@@ -110,7 +118,7 @@ def calculate_window_layout(work_area: tuple[int, int, int, int]) -> WindowLayou
         height=height,
         x=x,
         y=y,
-        layout_mode=layout_mode_for_width(width),
+        layout_mode=layout_mode_for_size(width, height),
     )
 
 
@@ -1117,7 +1125,7 @@ class BatchRenameApp:
         """原地应用当前客户区的布局档位和结果列策略。"""
 
         self._responsive_after_id = None
-        mode = layout_mode_for_width(width)
+        mode = layout_mode_for_size(width, height)
         previous_size = self._last_responsive_size
         if (
             mode == self.current_layout_mode
