@@ -12,7 +12,14 @@ from batch_rename.app import (
     summarize_candidates,
 )
 from batch_rename.examples import REGEX_EXAMPLES
-from batch_rename.models import CandidateStatus, ItemKind, RenameCandidate
+from batch_rename.models import (
+    CandidateStatus,
+    ItemKind,
+    MatchedItem,
+    MatchResult,
+    RenameCandidate,
+    ScanResult,
+)
 
 
 @pytest.fixture(scope="session")
@@ -88,16 +95,37 @@ def test_busy_state_locks_every_rule_and_scope_input(tk_window):
     assert app.search_scan_button.instate(["disabled"])
 
 
-def test_search_scan_button_and_enter_share_the_preview_action(tk_window, monkeypatch):
+def match_result(search="项目"):
+    source = Path("C:/root/项目合同.docx")
+    return MatchResult(
+        root=Path("C:/root"),
+        search=search,
+        use_regex=False,
+        items=[MatchedItem(source=source, kind=ItemKind.FILE)],
+    )
+
+
+def scan_result():
+    item = candidate("项目合同.docx", ItemKind.FILE)
+    return ScanResult(root=Path("C:/root"), candidates=[item])
+
+
+def test_search_and_preview_commands_are_separate(tk_window, monkeypatch):
     calls = []
-    monkeypatch.setattr(BatchRenameApp, "_start_scan", lambda self: calls.append("scan"))
+    monkeypatch.setattr(BatchRenameApp, "_start_search", lambda self: calls.append("search"))
+    monkeypatch.setattr(BatchRenameApp, "_start_preview", lambda self: calls.append("preview"))
     app = BatchRenameApp(tk_window)
 
     assert app.search_scan_button.cget("text") == "扫描"
     assert app.scan_button.cget("text") == "结果预览"
 
     app.search_scan_button.invoke()
-    assert calls == ["scan"]
+    assert calls == ["search"]
+
+    app._last_matches = match_result()
+    app._sync_command_states()
+    app.scan_button.invoke()
+    assert calls == ["search", "preview"]
 
     tk_window.deiconify()
     tk_window.update()
@@ -105,7 +133,51 @@ def test_search_scan_button_and_enter_share_the_preview_action(tk_window, monkey
     tk_window.update()
     app.search_entry.event_generate("<Return>")
     tk_window.update()
-    assert calls == ["scan", "scan"]
+    assert calls == ["search", "preview", "search"]
+
+    app.replacement_entry.focus_force()
+    tk_window.update()
+    app.replacement_entry.event_generate("<Return>")
+    tk_window.update()
+    assert calls == ["search", "preview", "search", "preview"]
+
+
+def test_replacement_change_keeps_match_snapshot_but_invalidates_preview(tk_window):
+    app = BatchRenameApp(tk_window)
+    app._last_matches = match_result()
+    app._last_scan = scan_result()
+
+    app.replacement_var.set("新名称")
+
+    assert app._last_matches is not None
+    assert app._last_scan is None
+
+
+def test_search_change_invalidates_match_snapshot_and_preview(tk_window):
+    app = BatchRenameApp(tk_window)
+    app._last_matches = match_result()
+    app._last_scan = scan_result()
+
+    app.search_var.set("另一规则")
+
+    assert app._last_matches is None
+    assert app._last_scan is None
+
+
+def test_matched_snapshot_renders_waiting_preview_rows(tk_window):
+    app = BatchRenameApp(tk_window)
+    app._last_matches = match_result()
+
+    app._render_preview()
+
+    row = app.result_tree.get_children()[0]
+    values = app.result_tree.item(row, "values")
+    assert values[2:] == (
+        "项目合同.docx",
+        "",
+        "等待结果预览",
+        "填写替换内容后生成结果预览",
+    )
 
 
 def test_applying_regex_example_fills_rule_and_enables_regex_mode(tk_window):

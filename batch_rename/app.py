@@ -13,15 +13,24 @@ from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 from typing import Iterable
 
-from .core import RenameRule, RuleError, ScanError, execute, scan
+from .core import (
+    RenameRule,
+    RuleError,
+    ScanError,
+    build_preview,
+    execute,
+    search_matches,
+)
 from .examples import REGEX_EXAMPLES, RegexExample
 from .models import (
     CandidateStatus,
     ExecutionRecord,
     ExecutionResult,
     ItemKind,
+    MatchedItem,
+    MatchOptions,
+    MatchResult,
     RenameCandidate,
-    ScanOptions,
     ScanResult,
 )
 
@@ -391,6 +400,7 @@ class BatchRenameApp:
         self._messages: queue.Queue[tuple] = queue.Queue()
         self._busy = False
         self._input_widgets: list[ttk.Widget] = []
+        self._last_matches: MatchResult | None = None
         self._last_scan: ScanResult | None = None
         self._last_execution: ExecutionResult | None = None
         self._app_icon: tk.PhotoImage | None = None
@@ -401,6 +411,7 @@ class BatchRenameApp:
         self._build_ui()
         self._bind_change_tracking()
         self._update_depth_state()
+        self._sync_command_states()
         self.root.after(self.POLL_INTERVAL_MS, self._poll_messages)
 
     def _configure_style(self) -> None:
@@ -803,7 +814,7 @@ class BatchRenameApp:
             frame,
             text="扫描",
             style="Secondary.TButton",
-            command=self._start_scan,
+            command=self._start_search,
         )
         self.search_scan_button.grid(row=1, column=2, padx=(0, 9), pady=3)
         self.replacement_field_label = ttk.Label(
@@ -874,7 +885,12 @@ class BatchRenameApp:
         frame = ttk.Frame(parent, style="Card.TFrame", padding=(8, 5))
         frame.grid(row=2, column=0, sticky="ew", pady=(0, 5))
         frame.columnconfigure(2, weight=1)
-        self.scan_button = ttk.Button(frame, text="结果预览", style="Accent.TButton", command=self._start_scan)
+        self.scan_button = ttk.Button(
+            frame,
+            text="结果预览",
+            style="Accent.TButton",
+            command=self._start_preview,
+        )
         self.scan_button.grid(row=0, column=0, padx=(0, 8))
         self.execute_button = ttk.Button(frame, text="确认并重命名", style="Secondary.TButton", command=self._confirm_execute, state="disabled")
         self.execute_button.grid(row=0, column=1, padx=(0, 14))
@@ -1018,31 +1034,51 @@ class BatchRenameApp:
         ToolTip(status, "状态栏会提示当前结果和建议的下一步操作。")
 
     def _bind_change_tracking(self) -> None:
-        variables = [
+        match_variables = [
             self.directory_var,
             self.depth_mode_var,
             self.depth_var,
             self.search_var,
-            self.replacement_var,
             self.regex_var,
-            self.rename_extension_var,
             self.include_dirs_var,
             self.include_files_var,
         ]
-        for variable in variables:
-            variable.trace_add("write", self._on_input_changed)
+        for variable in match_variables:
+            variable.trace_add("write", self._on_match_input_changed)
+        for variable in (self.replacement_var, self.rename_extension_var):
+            variable.trace_add("write", self._on_preview_input_changed)
         self.preview_limit_var.trace_add("write", lambda *_: self._render_preview())
-        self.search_entry.bind("<Return>", self._preview_from_search)
+        self.search_entry.bind("<Return>", self._search_from_entry)
+        self.replacement_entry.bind("<Return>", self._preview_from_replacement)
 
-    def _preview_from_search(self, _event=None) -> str:
-        self._start_scan()
+    def _search_from_entry(self, _event=None) -> str:
+        self._start_search()
         return "break"
 
-    def _on_input_changed(self, *_args) -> None:
-        if self._last_scan is not None and not self._busy:
+    def _preview_from_replacement(self, _event=None) -> str:
+        self._start_preview()
+        return "break"
+
+    def _on_match_input_changed(self, *_args) -> None:
+        if not self._busy and (
+            self._last_matches is not None or self._last_scan is not None
+        ):
+            self._last_matches = None
             self._last_scan = None
-            self.execute_button.configure(state="disabled")
-            self.status_var.set("设置已改变，请重新点击“结果预览”生成有效预览。")
+            self.status_var.set("扫描条件已改变，请重新执行“扫描”。")
+            self._render_preview()
+        self._update_rule_feedback(validate_replacement=False)
+        self._sync_command_states()
+
+    def _on_preview_input_changed(self, *_args) -> None:
+        if not self._busy and self._last_scan is not None:
+            self._last_scan = None
+            self.status_var.set("替换设置已改变，请重新生成“结果预览”。")
+            self._render_preview()
+        self._update_rule_feedback(validate_replacement=True)
+        self._sync_command_states()
+
+    def _update_rule_feedback(self, *, validate_replacement: bool) -> None:
         search_text = self.search_var.get()
         if not search_text:
             self.rule_feedback_var.set("请输入查找内容；该字段不能为空。")
@@ -1050,7 +1086,7 @@ class BatchRenameApp:
         try:
             RenameRule(
                 search_text,
-                self.replacement_var.get(),
+                self.replacement_var.get() if validate_replacement else "",
                 use_regex=self.regex_var.get(),
                 rename_extension=self.rename_extension_var.get(),
             )
@@ -1080,7 +1116,7 @@ class BatchRenameApp:
         if selected:
             self.directory_var.set(selected)
 
-    def _collect_options(self) -> ScanOptions:
+    def _collect_match_options(self) -> MatchOptions:
         directory_text = self.directory_var.get().strip()
         if not directory_text:
             raise ScanError("请先选择要扫描的根目录")
@@ -1096,30 +1132,28 @@ class BatchRenameApp:
                 raise ScanError("限制层级必须是大于或等于 1 的整数")
         RenameRule(
             self.search_var.get(),
-            self.replacement_var.get(),
+            "",
             use_regex=self.regex_var.get(),
-            rename_extension=self.rename_extension_var.get(),
         )
-        return ScanOptions(
+        return MatchOptions(
             root=Path(directory_text),
             search=self.search_var.get(),
-            replacement=self.replacement_var.get(),
             use_regex=self.regex_var.get(),
             max_depth=max_depth,
             include_files=self.include_files_var.get(),
             include_dirs=self.include_dirs_var.get(),
-            rename_extension=self.rename_extension_var.get(),
         )
 
-    def _start_scan(self) -> None:
+    def _start_search(self) -> None:
         if self._busy:
             return
         try:
-            options = self._collect_options()
+            options = self._collect_match_options()
         except (RuleError, ScanError) as exc:
             messagebox.showwarning("设置需要修正", str(exc), parent=self.root)
             self.status_var.set(f"无法扫描：{exc}")
             return
+        self._last_matches = None
         self._last_scan = None
         self._last_execution = None
         self.details_button.configure(state="disabled")
@@ -1127,18 +1161,97 @@ class BatchRenameApp:
         self.progress.configure(mode="indeterminate")
         self.progress.start(12)
         self.progress_text_var.set("正在读取目录，请稍候…")
-        self.status_var.set("正在扫描；此阶段只读取名称，不会修改任何项目。")
-        threading.Thread(target=self._scan_worker, args=(options,), daemon=True).start()
+        self.status_var.set("正在扫描匹配名称；此阶段不计算新名称，也不会修改磁盘。")
+        threading.Thread(
+            target=self._search_worker,
+            args=(options,),
+            daemon=True,
+        ).start()
 
-    def _scan_worker(self, options: ScanOptions) -> None:
+    def _search_worker(self, options: MatchOptions) -> None:
         try:
-            result = scan(options)
+            result = search_matches(options)
         except Exception as exc:
             self._messages.put(("error", "扫描失败", str(exc)))
         else:
-            self._messages.put(("scan_done", result))
+            self._messages.put(("match_done", result))
 
-    def _handle_scan_done(self, result: ScanResult) -> None:
+    def _handle_search_done(self, result: MatchResult) -> None:
+        self.progress.stop()
+        self.progress.configure(mode="determinate", value=100)
+        self._set_busy(False)
+        self._last_matches = result
+        self._last_scan = None
+        matched_total = len(result.items)
+        self.stats_var.set(
+            f"匹配：{matched_total}项 | 可修改：— | 名称未变化：— | 阻止执行：—"
+        )
+        self.progress_text_var.set(f"扫描完成：找到 {matched_total} 个名称匹配")
+        self._render_preview()
+        if matched_total:
+            self.status_var.set("扫描完成。请填写替换内容，然后生成“结果预览”。")
+        else:
+            self.status_var.set("没有找到符合搜索条件的名称，请检查目录、层级和查找内容。")
+        self._sync_command_states()
+        if result.errors:
+            messagebox.showwarning(
+                "扫描完成，但有提示",
+                f"已完成其余目录扫描，但有 {len(result.errors)} 个位置无法读取。\n\n"
+                + "\n".join(result.errors[:8]),
+                parent=self.root,
+            )
+
+    def _start_preview(self) -> None:
+        if self._busy:
+            return
+        if self._last_matches is None:
+            self.status_var.set("请先执行“扫描”，再生成结果预览。")
+            return
+        try:
+            RenameRule(
+                self._last_matches.search,
+                self.replacement_var.get(),
+                use_regex=self._last_matches.use_regex,
+                rename_extension=self.rename_extension_var.get(),
+            )
+        except RuleError as exc:
+            messagebox.showwarning("替换规则需要修正", str(exc), parent=self.root)
+            self.status_var.set(f"无法生成预览：{exc}")
+            return
+        self._last_scan = None
+        self._set_busy(True)
+        self.progress.configure(mode="indeterminate")
+        self.progress.start(12)
+        self.progress_text_var.set("正在计算新名称与安全状态…")
+        self.status_var.set("正在生成结果预览；不会修改磁盘。")
+        threading.Thread(
+            target=self._preview_worker,
+            args=(
+                self._last_matches,
+                self.replacement_var.get(),
+                self.rename_extension_var.get(),
+            ),
+            daemon=True,
+        ).start()
+
+    def _preview_worker(
+        self,
+        matches: MatchResult,
+        replacement: str,
+        rename_extension: bool,
+    ) -> None:
+        try:
+            result = build_preview(
+                matches,
+                replacement,
+                rename_extension=rename_extension,
+            )
+        except Exception as exc:
+            self._messages.put(("error", "预览失败", str(exc)))
+        else:
+            self._messages.put(("preview_done", result))
+
+    def _handle_preview_done(self, result: ScanResult) -> None:
         self.progress.stop()
         self.progress.configure(mode="determinate", value=100)
         self._set_busy(False)
@@ -1148,26 +1261,18 @@ class BatchRenameApp:
             f"匹配：{summary['matched_total']}项 | 可修改：{summary['ready_total']}项 | "
             f"名称未变化：{summary['unchanged_total']}项 | 阻止执行：{summary['blocked_total']}项"
         )
-        self.progress_text_var.set(f"扫描完成：找到 {summary['matched_total']} 个名称匹配")
+        self.progress_text_var.set(f"预览完成：已检查 {summary['matched_total']} 个匹配名称")
         self._render_preview()
         if summary["ready_total"]:
-            self.execute_button.configure(state="normal")
             self.status_var.set("预览已生成。请检查新名称和状态，确认无误后点击“确认并重命名”。")
         else:
-            self.execute_button.configure(state="disabled")
             if summary["matched_total"]:
                 self.status_var.set(
                     f"已匹配 {summary['matched_total']} 项，但本次没有可执行动作；请查看状态说明或调整替换内容。"
                 )
             else:
                 self.status_var.set("没有找到符合搜索条件的名称，请检查目录、层级和查找内容。")
-        if result.errors:
-            messagebox.showwarning(
-                "扫描完成，但有提示",
-                f"已完成其余目录扫描，但有 {len(result.errors)} 个位置无法读取。\n\n"
-                + "\n".join(result.errors[:8]),
-                parent=self.root,
-            )
+        self._sync_command_states()
 
     def _render_preview(self) -> None:
         if not hasattr(self, "result_tree"):
@@ -1176,8 +1281,35 @@ class BatchRenameApp:
             limit = max(1, int(self.preview_limit_var.get()))
         except (ValueError, tk.TclError):
             return
-        items = self._last_scan.candidates if self._last_scan is not None else []
-        self._fill_tree(self.result_tree, sorted_preview_items(items, limit))
+        if self._last_scan is not None:
+            self._fill_tree(
+                self.result_tree,
+                sorted_preview_items(self._last_scan.candidates, limit),
+            )
+        elif self._last_matches is not None:
+            self._fill_matches(self.result_tree, self._last_matches.items[:limit])
+        else:
+            self._fill_tree(self.result_tree, [])
+
+    def _fill_matches(
+        self, tree: ttk.Treeview, items: Iterable[MatchedItem]
+    ) -> None:
+        tree.delete(*tree.get_children())
+        for item in items:
+            tree.insert(
+                "",
+                "end",
+                values=(
+                    item.kind.value,
+                    str(item.source.parent),
+                    item.source.name,
+                    "",
+                    "等待结果预览",
+                    "填写替换内容后生成结果预览",
+                ),
+            )
+        if tree is self.result_tree:
+            self.new_name_overlay.schedule()
 
     def _fill_tree(
         self, tree: ttk.Treeview, items: Iterable[RenameCandidate]
@@ -1205,6 +1337,34 @@ class BatchRenameApp:
             )
         if tree is self.result_tree:
             self.new_name_overlay.schedule()
+
+    def _sync_command_states(self) -> None:
+        if not hasattr(self, "scan_button"):
+            return
+        self.scan_button.configure(
+            state=(
+                "normal"
+                if not self._busy and self._last_matches is not None
+                else "disabled"
+            )
+        )
+        ready = (
+            self._last_scan is not None
+            and any(
+                item.status is CandidateStatus.READY
+                for item in self._last_scan.candidates
+            )
+        )
+        self.execute_button.configure(
+            state="normal" if not self._busy and ready else "disabled"
+        )
+        self.details_button.configure(
+            state=(
+                "normal"
+                if not self._busy and self._last_execution is not None
+                else "disabled"
+            )
+        )
 
     def _confirm_execute(self) -> None:
         if self._busy or self._last_scan is None:
@@ -1264,9 +1424,9 @@ class BatchRenameApp:
     def _handle_execute_done(self, result: ExecutionResult) -> None:
         self._set_busy(False)
         self._last_execution = result
+        self._last_matches = None
         self._last_scan = None
-        self.execute_button.configure(state="disabled")
-        self.details_button.configure(state="normal")
+        self._sync_command_states()
         self.progress.configure(value=max(len(result.records), 1))
         self.progress_text_var.set(
             f"完成：成功 {result.succeeded}，跳过 {result.skipped}，失败 {result.failed}"
@@ -1285,8 +1445,10 @@ class BatchRenameApp:
             while True:
                 message = self._messages.get_nowait()
                 kind = message[0]
-                if kind == "scan_done":
-                    self._handle_scan_done(message[1])
+                if kind == "match_done":
+                    self._handle_search_done(message[1])
+                elif kind == "preview_done":
+                    self._handle_preview_done(message[1])
                 elif kind == "progress":
                     self._handle_progress(message[1], message[2], message[3])
                 elif kind == "execute_done":
@@ -1313,6 +1475,7 @@ class BatchRenameApp:
         if busy:
             self.execute_button.configure(state="disabled")
         self._update_depth_state()
+        self._sync_command_states()
 
     def _show_execution_details(self) -> None:
         if self._last_execution is None:
