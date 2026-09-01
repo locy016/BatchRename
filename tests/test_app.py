@@ -9,7 +9,9 @@ from batch_rename.app import (
     BatchRenameApp,
     ManagedDialogs,
     _tree_cell_content,
+    calculate_window_layout,
     centered_dialog_geometry,
+    layout_mode_for_width,
     sorted_preview_items,
     summarize_candidates,
 )
@@ -67,6 +69,38 @@ def menu_labels(menu):
 def test_main_exposes_callable_entrypoint():
     assert callable(main.main)
     assert BatchRenameApp.__name__ == "BatchRenameApp"
+
+
+@pytest.mark.parametrize(
+    ("work_area", "screen_kind", "size", "geometry", "layout_mode"),
+    [
+        ((0, 0, 1920, 1080), "standard", (960, 680), "960x680+480+200", "compact"),
+        ((0, 0, 2560, 1440), "standard", (1280, 720), "1280x720+640+360", "standard"),
+        ((0, 0, 3840, 2160), "standard", (1920, 1080), "1920x1080+960+540", "spacious"),
+        ((0, 0, 3440, 1440), "ultrawide", (1582, 979), "1582x979+929+230", "spacious"),
+        ((0, 0, 5120, 1440), "ultrawide", (1664, 979), "1664x979+1728+230", "spacious"),
+        ((0, 0, 1080, 1920), "portrait", (972, 1118), "972x1118+54+401", "compact"),
+        ((-2560, 0, 0, 1440), "standard", (1280, 720), "1280x720+-1920+360", "standard"),
+        ((100, 50, 900, 650), "standard", (960, 680), "960x680+100+50", "compact"),
+    ],
+)
+def test_window_layout_classifies_and_centers_on_the_selected_work_area(
+    work_area, screen_kind, size, geometry, layout_mode
+):
+    layout = calculate_window_layout(work_area)
+
+    assert layout.screen_kind == screen_kind
+    assert layout.size == size
+    assert layout.geometry == geometry
+    assert layout.layout_mode == layout_mode
+
+
+@pytest.mark.parametrize(
+    ("width", "expected"),
+    [(960, "compact"), (1119, "compact"), (1120, "standard"), (1439, "standard"), (1440, "spacious")],
+)
+def test_layout_mode_uses_confirmed_client_width_breakpoints(width, expected):
+    assert layout_mode_for_width(width) == expected
 
 
 def test_preview_combines_categories_and_uses_natural_name_order():

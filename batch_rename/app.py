@@ -9,6 +9,7 @@ import sys
 import threading
 import tkinter as tk
 import ctypes
+from dataclasses import dataclass
 from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 from typing import Callable, Iterable
@@ -34,6 +35,83 @@ from .models import (
     RenameCandidate,
     ScanResult,
 )
+
+
+MIN_WINDOW_WIDTH = 960
+MIN_WINDOW_HEIGHT = 680
+
+
+def layout_mode_for_width(width: int) -> str:
+    """根据主窗口客户区宽度返回响应式布局档位。"""
+
+    if width >= 1440:
+        return "spacious"
+    if width >= 1120:
+        return "standard"
+    return "compact"
+
+
+@dataclass(frozen=True, slots=True)
+class WindowLayout:
+    """一次初始窗口布局计算的不可变结果。"""
+
+    screen_kind: str
+    width: int
+    height: int
+    x: int
+    y: int
+    layout_mode: str
+
+    @property
+    def size(self) -> tuple[int, int]:
+        return self.width, self.height
+
+    @property
+    def geometry(self) -> str:
+        return f"{self.width}x{self.height}+{self.x}+{self.y}"
+
+
+def calculate_window_layout(work_area: tuple[int, int, int, int]) -> WindowLayout:
+    """按显示器工作区分类并计算居中的初始窗口布局。"""
+
+    left, top, right, bottom = work_area
+    work_width = max(1, right - left)
+    work_height = max(1, bottom - top)
+    ratio = work_width / work_height
+
+    if ratio < 1.15:
+        screen_kind = "portrait"
+        width = max(MIN_WINDOW_WIDTH, round(work_width * 0.90))
+        height = max(
+            MIN_WINDOW_HEIGHT,
+            min(round(work_height * 0.68), round(width * 1.15)),
+        )
+    elif ratio > 2.0:
+        screen_kind = "ultrawide"
+        height = max(MIN_WINDOW_HEIGHT, round(work_height * 0.68))
+        width = max(
+            MIN_WINDOW_WIDTH,
+            min(round(work_width * 0.46), round(height * 1.70)),
+        )
+    else:
+        screen_kind = "standard"
+        width = max(MIN_WINDOW_WIDTH, round(work_width * 0.50))
+        height = max(MIN_WINDOW_HEIGHT, round(work_height * 0.50))
+
+    if work_width >= MIN_WINDOW_WIDTH:
+        width = min(width, work_width)
+    if work_height >= MIN_WINDOW_HEIGHT:
+        height = min(height, work_height)
+    x = left if width > work_width else left + (work_width - width) // 2
+    y = top if height > work_height else top + (work_height - height) // 2
+    return WindowLayout(
+        screen_kind=screen_kind,
+        width=width,
+        height=height,
+        x=x,
+        y=y,
+        layout_mode=layout_mode_for_width(width),
+    )
 
 
 def _natural_name_key(value: str) -> tuple[tuple[int, str | int], ...]:
