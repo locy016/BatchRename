@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="360" viewBox="0 0 1440 360" role="img" aria-labelledby="title description">
+  <title id="title">批量重命名六步操作流程</title>
+  <desc id="description">从选择目录、设置查找规则、扫描匹配、填写替换内容、结果预览到确认执行的安全操作流程。</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3f6fa"/>
+      <stop offset="1" stop-color="#e8f2f4"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#17324d" flood-opacity="0.13"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7b94a8"/>
+    </marker>
+    <style>
+      .title { font: 700 27px "Microsoft YaHei UI", "Noto Sans SC", sans-serif; fill: #17324d; }
+      .eyebrow { font: 600 14px "Microsoft YaHei UI", "Noto Sans SC", sans-serif; fill: #0f8b8d; letter-spacing: 2px; }
+      .step-title { font: 700 21px "Microsoft YaHei UI", "Noto Sans SC", sans-serif; fill: #17324d; }
+      .step-copy { font: 400 15px "Microsoft YaHei UI", "Noto Sans SC", sans-serif; fill: #657482; }
+      .number { font: 700 18px "Microsoft YaHei UI", "Noto Sans SC", sans-serif; fill: #ffffff; text-anchor: middle; dominant-baseline: middle; }
+      .footer { font: 600 16px "Microsoft YaHei UI", "Noto Sans SC", sans-serif; fill: #284b6b; }
+    </style>
+  </defs>
+
+  <rect width="1440" height="360" rx="28" fill="url(#background)"/>
+  <text x="50" y="37" class="eyebrow">安全重命名工作流</text>
+  <text x="50" y="67" class="title">先找到，再预览，确认无误后执行</text>
+
+  <g fill="none" stroke="#7b94a8" stroke-width="3" marker-end="url(#arrow)">
+    <path d="M 240 168 H 270"/>
+    <path d="M 470 168 H 500"/>
+    <path d="M 700 168 H 730"/>
+    <path d="M 930 168 H 960"/>
+    <path d="M 1160 168 H 1190"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="50" y="88" width="190" height="168" rx="18" fill="#ffffff" stroke="#dce4eb"/>
+    <circle cx="78" cy="116" r="18" fill="#284b6b"/>
+    <text x="78" y="117" class="number">1</text>
+    <text x="70" y="160" class="step-title">选择目录</text>
+    <text x="70" y="193" class="step-copy">确定扫描起点</text>
+    <text x="70" y="219" class="step-copy">根目录本身不改名</text>
+
+    <rect x="280" y="88" width="190" height="168" rx="18" fill="#ffffff" stroke="#dce4eb"/>
+    <circle cx="308" cy="116" r="18" fill="#284b6b"/>
+    <text x="308" y="117" class="number">2</text>
+    <text x="300" y="160" class="step-title">查找规则</text>
+    <text x="300" y="193" class="step-copy">普通文本或正则</text>
+    <text x="300" y="219" class="step-copy">可使用经典模板</text>
+
+    <rect x="510" y="88" width="190" height="168" rx="18" fill="#edf9f9" stroke="#7cc3c4" stroke-width="2"/>
+    <circle cx="538" cy="116" r="18" fill="#0f8b8d"/>
+    <text x="538" y="117" class="number">3</text>
+    <text x="530" y="160" class="step-title">扫描匹配</text>
+    <text x="530" y="193" class="step-copy">只列出匹配名称</text>
+    <text x="530" y="219" class="step-copy">不需要替换内容</text>
+
+    <rect x="740" y="88" width="190" height="168" rx="18" fill="#ffffff" stroke="#dce4eb"/>
+    <circle cx="768" cy="116" r="18" fill="#284b6b"/>
+    <text x="768" y="117" class="number">4</text>
+    <text x="760" y="160" class="step-title">填写替换</text>
+    <text x="760" y="193" class="step-copy">输入目标文字</text>
+    <text x="760" y="219" class="step-copy">留空可删除匹配项</text>
+
+    <rect x="970" y="88" width="190" height="168" rx="18" fill="#edf9f9" stroke="#7cc3c4" stroke-width="2"/>
+    <circle cx="998" cy="116" r="18" fill="#0f8b8d"/>
+    <text x="998" y="117" class="number">5</text>
+    <text x="990" y="160" class="step-title">结果预览</text>
+    <text x="990" y="193" class="step-copy">核对新名称与状态</text>
+    <text x="990" y="219" class="step-copy">冲突项目自动阻止</text>
+
+    <rect x="1200" y="88" width="190" height="168" rx="18" fill="#17324d" stroke="#17324d"/>
+    <circle cx="1228" cy="116" r="18" fill="#16a3a5"/>
+    <text x="1228" y="117" class="number">6</text>
+    <text x="1220" y="160" class="step-title" fill="#ffffff" style="fill:#ffffff">确认执行</text>
+    <text x="1220" y="193" class="step-copy" fill="#d7e5f0" style="fill:#d7e5f0">查看汇总并二次确认</text>
+    <text x="1220" y="219" class="step-copy" fill="#d7e5f0" style="fill:#d7e5f0">确认后才写入磁盘</text>
+  </g>
+
+  <g transform="translate(50 294)">
+    <rect width="665" height="42" rx="12" fill="#ffffff" stroke="#cbd8e2"/>
+    <circle cx="24" cy="21" r="8" fill="#0f8b8d"/>
+    <text x="43" y="27" class="footer">扫描与结果预览都不会修改文件或文件夹名称</text>
+  </g>
+  <g transform="translate(735 294)">
+    <rect width="655" height="42" rx="12" fill="#ffffff" stroke="#cbd8e2"/>
+    <circle cx="24" cy="21" r="8" fill="#177245"/>
+    <text x="43" y="27" class="footer">只有“可修改”项目会在最终确认后执行</text>
+  </g>
+</svg>
