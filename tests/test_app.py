@@ -1,4 +1,6 @@
 from pathlib import Path
+from types import SimpleNamespace
+import time
 import tkinter as tk
 from tkinter import font as tkfont, ttk
 
@@ -554,6 +556,50 @@ def test_responsive_mode_transitions_keep_rule_widgets_and_state_instances(tk_wi
     assert app.search_var is search_var
     assert app.replacement_var is replacement_var
     assert (app.search_var.get(), app.replacement_var.get()) == ("项目", "归档")
+
+
+def test_configure_debounce_applies_only_the_latest_window_size(tk_window):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
+    )
+    applied_sizes = []
+    app._apply_responsive_layout = lambda width, height: applied_sizes.append(
+        (width, height)
+    )
+
+    for width in (1000, 1200, 1500):
+        app._schedule_responsive_layout(
+            SimpleNamespace(widget=tk_window, width=width, height=800)
+        )
+    deadline = time.monotonic() + 0.3
+    while time.monotonic() < deadline and not applied_sizes:
+        tk_window.update()
+
+    assert applied_sizes == [(1500, 800)]
+
+
+def test_destroying_window_removes_pending_responsive_callback(
+    tk_window, tk_session_root
+):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
+    )
+    applied_sizes = []
+    app._apply_responsive_layout = lambda width, height: applied_sizes.append(
+        (width, height)
+    )
+    app._schedule_responsive_layout(
+        SimpleNamespace(widget=tk_window, width=1500, height=800)
+    )
+    callback_id = app._responsive_after_id
+
+    tk_window.destroy()
+    deadline = time.monotonic() + 0.2
+    while time.monotonic() < deadline:
+        tk_session_root.update()
+
+    assert callback_id not in tk_session_root.tk.call("after", "info")
+    assert applied_sizes == []
 
 
 def test_compact_navigation_reuses_the_workflow_rail_as_a_drawer(tk_window):
