@@ -205,6 +205,45 @@ def _monitor_work_area(root: tk.Misc) -> tuple[int, int, int, int]:
     return left, top, left + root.winfo_vrootwidth(), top + root.winfo_vrootheight()
 
 
+def _pointer_monitor_work_area(root: tk.Misc) -> tuple[int, int, int, int]:
+    """取得鼠标指针所在显示器的工作区，失败时回退到 Tk 虚拟桌面。"""
+
+    if sys.platform == "win32":
+        try:
+            class POINT(ctypes.Structure):
+                _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+            class RECT(ctypes.Structure):
+                _fields_ = [
+                    ("left", ctypes.c_long),
+                    ("top", ctypes.c_long),
+                    ("right", ctypes.c_long),
+                    ("bottom", ctypes.c_long),
+                ]
+
+            class MONITORINFO(ctypes.Structure):
+                _fields_ = [
+                    ("cbSize", ctypes.c_ulong),
+                    ("rcMonitor", RECT),
+                    ("rcWork", RECT),
+                    ("dwFlags", ctypes.c_ulong),
+                ]
+
+            user32 = ctypes.windll.user32
+            point = POINT()
+            if user32.GetCursorPos(ctypes.byref(point)):
+                monitor = user32.MonitorFromPoint(point, 2)
+                info = MONITORINFO(cbSize=ctypes.sizeof(MONITORINFO))
+                if monitor and user32.GetMonitorInfoW(monitor, ctypes.byref(info)):
+                    work = info.rcWork
+                    return work.left, work.top, work.right, work.bottom
+        except (AttributeError, OSError, tk.TclError):
+            pass
+    left = root.winfo_vrootx()
+    top = root.winfo_vrooty()
+    return left, top, left + root.winfo_vrootwidth(), top + root.winfo_vrootheight()
+
+
 class ManagedDialogs:
     """统一管理子窗口的单实例、同屏定位、焦点和模态状态。"""
 
@@ -572,11 +611,17 @@ class BatchRenameApp:
         "blocked": "#A53A3A",
     }
 
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(
+        self,
+        root: tk.Tk,
+        *,
+        work_area_provider: Callable[[tk.Misc], tuple[int, int, int, int]] = _pointer_monitor_work_area,
+    ) -> None:
         self.root = root
         self.root.title("批量重命名工具")
-        self.root.geometry("960x680")
-        self.root.minsize(960, 680)
+        self.initial_window_layout = calculate_window_layout(work_area_provider(root))
+        self.root.geometry(self.initial_window_layout.geometry)
+        self.root.minsize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
         self.root.configure(background=self.COLORS["background"])
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 

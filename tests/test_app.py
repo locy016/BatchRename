@@ -103,6 +103,31 @@ def test_layout_mode_uses_confirmed_client_width_breakpoints(width, expected):
     assert layout_mode_for_width(width) == expected
 
 
+@pytest.mark.parametrize(
+    ("work_area", "geometry"),
+    [
+        ((0, 0, 1920, 1080), "960x680+480+200"),
+        ((1920, 0, 5360, 1440), "1582x979+2849+230"),
+        ((-1080, 0, 0, 1920), "972x1118+-1026+401"),
+    ],
+)
+def test_app_uses_injected_pointer_monitor_work_area_for_initial_geometry(
+    tk_window, work_area, geometry
+):
+    provider_calls = []
+
+    app = BatchRenameApp(
+        tk_window,
+        work_area_provider=lambda root: provider_calls.append(root) or work_area,
+    )
+    tk_window.update_idletasks()
+
+    assert provider_calls == [tk_window]
+    assert app.initial_window_layout.geometry == geometry
+    assert tk_window.geometry() == geometry
+    assert tk_window.minsize() == (960, 680)
+
+
 def test_preview_combines_categories_and_uses_natural_name_order():
     items = [
         candidate("文件10.txt", ItemKind.FILE),
@@ -434,7 +459,9 @@ def test_new_name_column_uses_a_dedicated_accent_text_overlay(tk_window):
 
 
 def test_default_layout_fits_960_by_680_and_expands_the_result_area(tk_window):
-    app = BatchRenameApp(tk_window)
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
+    )
     tk_window.update_idletasks()
 
     assert tk_window.geometry().startswith("960x680")
