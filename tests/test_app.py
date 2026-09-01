@@ -7,7 +7,9 @@ import pytest
 from batch_rename.app import (
     AutoHideScrollbar,
     BatchRenameApp,
+    ManagedDialogs,
     _tree_cell_content,
+    centered_dialog_geometry,
     sorted_preview_items,
     summarize_candidates,
 )
@@ -409,6 +411,44 @@ def test_horizontal_scrollbar_hides_when_everything_is_visible(tk_window):
 
     scrollbar.set("0.0", "0.5")
     assert scrollbar.winfo_manager() == "grid"
+
+
+def test_centered_dialog_geometry_is_clamped_to_parent_monitor():
+    geometry = centered_dialog_geometry(
+        parent=(2100, 100, 960, 680),
+        dialog=(760, 640),
+        work_area=(1920, 0, 3840, 1040),
+    )
+
+    assert geometry == "760x640+2200+120"
+
+
+def test_managed_dialog_reuses_instance_and_unregisters_on_close(tk_window):
+    dialogs = ManagedDialogs(tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080))
+    built = []
+
+    first = dialogs.open(
+        "help",
+        title="使用说明",
+        size=(500, 400),
+        build=lambda window: built.append(window),
+        modal=True,
+    )
+    second = dialogs.open(
+        "help",
+        title="不会重复创建",
+        size=(300, 200),
+        build=lambda window: built.append(window),
+        modal=True,
+    )
+
+    assert first is second
+    assert built == [first]
+    assert str(first.transient()) == str(tk_window)
+    assert first.grab_current() == first
+
+    dialogs.close("help")
+    assert "help" not in dialogs.windows
 
 
 def test_tree_cell_content_returns_heading_and_full_value(tk_window):

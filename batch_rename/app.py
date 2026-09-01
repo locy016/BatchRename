@@ -11,7 +11,7 @@ import tkinter as tk
 import ctypes
 from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
-from typing import Iterable
+from typing import Callable, Iterable
 
 from .core import (
     RenameRule,
@@ -70,6 +70,127 @@ def summarize_candidates(candidates: Iterable[RenameCandidate]) -> dict[str, int
         "unchanged_total": unchanged_total,
         "blocked_total": len(items) - ready_total - unchanged_total,
     }
+
+
+def centered_dialog_geometry(
+    *,
+    parent: tuple[int, int, int, int],
+    dialog: tuple[int, int],
+    work_area: tuple[int, int, int, int],
+) -> str:
+    """返回以父窗口为中心且限制在当前显示器工作区内的几何参数。"""
+
+    parent_x, parent_y, parent_width, parent_height = parent
+    dialog_width, dialog_height = dialog
+    left, top, right, bottom = work_area
+    width = min(dialog_width, max(1, right - left))
+    height = min(dialog_height, max(1, bottom - top))
+    x = parent_x + (parent_width - width) // 2
+    y = parent_y + (parent_height - height) // 2
+    x = min(max(x, left), right - width)
+    y = min(max(y, top), bottom - height)
+    return f"{width}x{height}+{x}+{y}"
+
+
+def _monitor_work_area(root: tk.Misc) -> tuple[int, int, int, int]:
+    """取得父窗口所在显示器的可用区域，失败时使用 Tk 虚拟桌面。"""
+
+    if sys.platform == "win32":
+        try:
+            class RECT(ctypes.Structure):
+                _fields_ = [
+                    ("left", ctypes.c_long),
+                    ("top", ctypes.c_long),
+                    ("right", ctypes.c_long),
+                    ("bottom", ctypes.c_long),
+                ]
+
+            class MONITORINFO(ctypes.Structure):
+                _fields_ = [
+                    ("cbSize", ctypes.c_ulong),
+                    ("rcMonitor", RECT),
+                    ("rcWork", RECT),
+                    ("dwFlags", ctypes.c_ulong),
+                ]
+
+            user32 = ctypes.windll.user32
+            monitor = user32.MonitorFromWindow(root.winfo_id(), 2)
+            info = MONITORINFO(cbSize=ctypes.sizeof(MONITORINFO))
+            if monitor and user32.GetMonitorInfoW(monitor, ctypes.byref(info)):
+                work = info.rcWork
+                return work.left, work.top, work.right, work.bottom
+        except (AttributeError, OSError, tk.TclError):
+            pass
+    left = root.winfo_vrootx()
+    top = root.winfo_vrooty()
+    return left, top, left + root.winfo_vrootwidth(), top + root.winfo_vrootheight()
+
+
+class ManagedDialogs:
+    """统一管理子窗口的单实例、同屏定位、焦点和模态状态。"""
+
+    def __init__(
+        self,
+        root: tk.Misc,
+        *,
+        work_area_provider: Callable[[tk.Misc], tuple[int, int, int, int]] = _monitor_work_area,
+    ) -> None:
+        self.root = root
+        self.work_area_provider = work_area_provider
+        self.windows: dict[str, tk.Toplevel] = {}
+
+    def open(
+        self,
+        key: str,
+        *,
+        title: str,
+        size: tuple[int, int],
+        build: Callable[[tk.Toplevel], None],
+        modal: bool = False,
+    ) -> tk.Toplevel:
+        existing = self.windows.get(key)
+        if existing is not None and existing.winfo_exists():
+            existing.deiconify()
+            existing.lift()
+            existing.after_idle(existing.focus_force)
+            return existing
+
+        window = tk.Toplevel(self.root)
+        window.withdraw()
+        window.title(title)
+        window.transient(self.root)
+        self.windows[key] = window
+        window.protocol("WM_DELETE_WINDOW", lambda: self.close(key))
+        build(window)
+        window.update_idletasks()
+        parent = (
+            self.root.winfo_rootx(),
+            self.root.winfo_rooty(),
+            max(1, self.root.winfo_width()),
+            max(1, self.root.winfo_height()),
+        )
+        window.geometry(
+            centered_dialog_geometry(
+                parent=parent,
+                dialog=size,
+                work_area=self.work_area_provider(self.root),
+            )
+        )
+        window.deiconify()
+        window.lift()
+        if modal:
+            window.grab_set()
+        window.after_idle(window.focus_force)
+        return window
+
+    def close(self, key: str) -> None:
+        window = self.windows.pop(key, None)
+        if window is not None and window.winfo_exists():
+            if window.grab_current() == window:
+                window.grab_release()
+            window.destroy()
+        if self.root.winfo_exists():
+            self.root.after_idle(self.root.focus_force)
 
 
 class AutoHideScrollbar(ttk.Scrollbar):
@@ -405,6 +526,7 @@ class BatchRenameApp:
         self._last_execution: ExecutionResult | None = None
         self._app_icon: tk.PhotoImage | None = None
         self._header_icon: tk.PhotoImage | None = None
+        self.dialogs = ManagedDialogs(self.root)
 
         self._configure_style()
         self._load_application_icon()
@@ -1858,37 +1980,41 @@ class BatchRenameApp:
     def _show_execution_details(self) -> None:
         if self._last_execution is None:
             return
-        window = tk.Toplevel(self.root)
-        window.title("重命名结果详情")
-        window.geometry("1000x560")
-        window.transient(self.root)
-        frame = ttk.Frame(window, padding=10)
-        frame.pack(fill="both", expand=True)
-        ttk.Label(
-            frame,
-            text=(
-                f"成功 {self._last_execution.succeeded} 项；"
-                f"跳过 {self._last_execution.skipped} 项；"
-                f"失败 {self._last_execution.failed} 项"
-            ),
-            style="Stats.TLabel",
-        ).pack(anchor="w", pady=(0, 8))
-        text = tk.Text(frame, wrap="none", font=("Consolas", 9))
-        ybar = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
-        xbar = ttk.Scrollbar(frame, orient="horizontal", command=text.xview)
-        text.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
-        text.pack(side="left", fill="both", expand=True)
-        ybar.pack(side="right", fill="y")
-        for index, record in enumerate(self._last_execution.records, start=1):
-            text.insert(
-                "end",
-                f"{index:>4}. [{record.outcome}] {record.kind.value}\n"
-                f"      原：{record.source}\n"
-                f"      新：{record.target}\n"
-                f"      说明：{record.detail}\n\n",
-            )
-        text.configure(state="disabled")
-        xbar.pack(side="bottom", fill="x")
+        execution = self._last_execution
+
+        def build(window: tk.Toplevel) -> None:
+            frame = ttk.Frame(window, padding=10)
+            frame.pack(fill="both", expand=True)
+            ttk.Label(
+                frame,
+                text=(
+                    f"成功 {execution.succeeded} 项；"
+                    f"跳过 {execution.skipped} 项；失败 {execution.failed} 项"
+                ),
+                style="Stats.TLabel",
+            ).pack(anchor="w", pady=(0, 8))
+            text = tk.Text(frame, wrap="none", font=("Consolas", 9))
+            ybar = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
+            xbar = ttk.Scrollbar(frame, orient="horizontal", command=text.xview)
+            text.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
+            text.pack(side="left", fill="both", expand=True)
+            ybar.pack(side="right", fill="y")
+            for index, record in enumerate(execution.records, start=1):
+                text.insert(
+                    "end",
+                    f"{index:>4}. [{record.outcome}] {record.kind.value}\n"
+                    f"      原：{record.source}\n      新：{record.target}\n"
+                    f"      说明：{record.detail}\n\n",
+                )
+            text.configure(state="disabled")
+            xbar.pack(side="bottom", fill="x")
+
+        self.dialogs.open(
+            "execution-details",
+            title="重命名结果详情",
+            size=(900, 540),
+            build=build,
+        )
 
     def _apply_regex_example(
         self, example: RegexExample, window: tk.Toplevel | None = None
@@ -2125,24 +2251,32 @@ class BatchRenameApp:
 工具不会覆盖已有项目。目标已存在、多个项目生成同一目标、名称含 Windows 非法字符、名称为空或使用 CON 等保留名时，预览会用红色标出并跳过。执行前还会再次检查磁盘状态。子项目先于父文件夹处理；符号链接不会被跟随。
 
 注意：执行完成后本工具不提供自动撤销。建议对重要目录先备份，并认真检查预览。"""
-        window = tk.Toplevel(self.root)
-        window.title("使用说明")
-        window.geometry("760x640")
-        window.transient(self.root)
-        frame = ttk.Frame(window, padding=12)
-        frame.pack(fill="both", expand=True)
-        text = tk.Text(frame, wrap="word", padx=10, pady=10, font=("Microsoft YaHei UI", 10), spacing2=3)
-        scrollbar = ttk.Scrollbar(
-            frame,
-            orient="vertical",
-            command=text.yview,
-            style="Modern.Vertical.TScrollbar",
+        def build(window: tk.Toplevel) -> None:
+            frame = ttk.Frame(window, padding=12)
+            frame.pack(fill="both", expand=True)
+            text = tk.Text(
+                frame,
+                wrap="word",
+                padx=10,
+                pady=10,
+                font=("Microsoft YaHei UI", 10),
+                spacing2=3,
+            )
+            scrollbar = ttk.Scrollbar(
+                frame,
+                orient="vertical",
+                command=text.yview,
+                style="Modern.Vertical.TScrollbar",
+            )
+            text.configure(yscrollcommand=scrollbar.set)
+            text.pack(side="left", fill="both", expand=True)
+            scrollbar.pack(side="right", fill="y")
+            text.insert("1.0", help_text)
+            text.configure(state="disabled")
+
+        self.dialogs.open(
+            "help", title="使用说明", size=(760, 640), build=build
         )
-        text.configure(yscrollcommand=scrollbar.set)
-        text.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        text.insert("1.0", help_text)
-        text.configure(state="disabled")
 
     def _on_close(self) -> None:
         if self._busy:
