@@ -1,8 +1,15 @@
+import os
 from pathlib import Path
 
 import pytest
 
-from batch_rename.core import RuleError, ScanError, scan, search_matches
+from batch_rename.core import (
+    RuleError,
+    ScanError,
+    build_preview,
+    scan,
+    search_matches,
+)
 from batch_rename.models import CandidateStatus, ItemKind, MatchOptions, ScanOptions
 
 
@@ -45,6 +52,28 @@ def test_search_matches_respects_object_type_and_depth(tmp_path):
 
     assert [item.source for item in result.items] == [direct]
     assert nested not in {item.source for item in result.items}
+
+
+def test_build_preview_uses_snapshot_without_scandir(tmp_path, monkeypatch):
+    source = touch(tmp_path / "旧版.txt")
+    snapshot = search_matches(MatchOptions(tmp_path, "旧版"))
+    monkeypatch.setattr(os, "scandir", lambda *_: pytest.fail("不得重新扫描"))
+
+    result = build_preview(snapshot, "新版")
+
+    assert result.candidates[0].source == source
+    assert result.candidates[0].new_name == "新版.txt"
+
+
+def test_build_preview_reuses_snapshot_for_different_replacements(tmp_path):
+    source = touch(tmp_path / "项目.txt")
+    snapshot = search_matches(MatchOptions(tmp_path, "项目"))
+
+    first = build_preview(snapshot, "归档")
+    second = build_preview(snapshot, "完成")
+
+    assert first.candidates[0].target == source.with_name("归档.txt")
+    assert second.candidates[0].target == source.with_name("完成.txt")
 
 
 def test_unlimited_depth_scans_files_and_directories(tmp_path):

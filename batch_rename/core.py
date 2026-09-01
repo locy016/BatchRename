@@ -184,97 +184,63 @@ def search_matches(options: MatchOptions) -> MatchResult:
     return result
 
 
-def scan(options: ScanOptions) -> ScanResult:
-    """扫描目录并返回所有名称将发生变化的候选项。"""
-
-    root = Path(options.root).expanduser().resolve()
-    if not root.is_dir():
-        raise ScanError("所选目录不存在或不是文件夹")
-    if options.max_depth is not None and options.max_depth < 1:
-        raise ScanError("扫描层级必须是大于或等于 1 的整数")
-    if not options.include_files and not options.include_dirs:
-        raise ScanError("请至少选择文件夹或文件中的一类")
+def build_preview(
+    snapshot: MatchResult,
+    replacement: str,
+    *,
+    rename_extension: bool = False,
+) -> ScanResult:
+    """从名称匹配快照计算目标名称与安全状态，不重新遍历目录。"""
 
     rule = RenameRule(
-        options.search,
-        options.replacement,
-        use_regex=options.use_regex,
-        rename_extension=options.rename_extension,
+        snapshot.search,
+        replacement,
+        use_regex=snapshot.use_regex,
+        rename_extension=rename_extension,
     )
-    result = ScanResult(root=root)
-    pending: list[tuple[Path, int]] = [(root, 1)]
+    result = ScanResult(root=snapshot.root, errors=list(snapshot.errors))
 
-    while pending:
-        parent, child_depth = pending.pop()
-        try:
-            with os.scandir(parent) as iterator:
-                entries = sorted(iterator, key=lambda item: item.name.casefold(), reverse=True)
-        except OSError as exc:
-            result.errors.append(f"无法读取 {parent}：{exc}")
-            continue
-
-        for entry in entries:
-            try:
-                if entry.is_symlink():
-                    continue
-                is_dir = entry.is_dir(follow_symlinks=False)
-                is_file = entry.is_file(follow_symlinks=False)
-            except OSError as exc:
-                result.errors.append(f"无法检查 {entry.path}：{exc}")
-                continue
-
-            source = Path(entry.path)
-            if is_dir and (
-                options.max_depth is None or child_depth < options.max_depth
-            ):
-                pending.append((source, child_depth + 1))
-
-            selected = (is_dir and options.include_dirs) or (
-                is_file and options.include_files
-            )
-            if not selected:
-                continue
-
-            if not rule.matches(entry.name):
-                continue
-
-            new_name = rule.rename(entry.name, is_file=is_file)
-            if new_name == entry.name:
-                detail = "名称符合搜索条件，但替换后没有变化"
-                if is_file and not options.rename_extension:
-                    stem, _suffix = os.path.splitext(entry.name)
-                    if not rule.matches(stem):
-                        detail = "搜索内容位于受保护的文件扩展名中，因此名称没有变化"
-                result.candidates.append(
-                    RenameCandidate(
-                        source=source,
-                        target=source,
-                        kind=ItemKind.DIRECTORY if is_dir else ItemKind.FILE,
-                        status=CandidateStatus.UNCHANGED,
-                        detail=detail,
-                    )
-                )
-                continue
-            target = source.with_name(new_name)
-            invalid_reason = validate_windows_name(new_name)
-            if invalid_reason:
-                status = CandidateStatus.INVALID
-                detail = invalid_reason
-            elif target.exists() and _path_key(target) != _path_key(source):
-                status = CandidateStatus.CONFLICT
-                detail = "同一目录中已存在该目标名称"
-            else:
-                status = CandidateStatus.READY
-                detail = "可以安全修改"
+    for item in snapshot.items:
+        source = item.source
+        is_file = item.kind is ItemKind.FILE
+        new_name = rule.rename(source.name, is_file=is_file)
+        if new_name == source.name:
+            detail = "名称符合搜索条件，但替换后没有变化"
+            if is_file and not rename_extension:
+                stem, _suffix = os.path.splitext(source.name)
+                if not rule.matches(stem):
+                    detail = "搜索内容位于受保护的文件扩展名中，因此名称没有变化"
             result.candidates.append(
                 RenameCandidate(
                     source=source,
-                    target=target,
-                    kind=ItemKind.DIRECTORY if is_dir else ItemKind.FILE,
-                    status=status,
+                    target=source,
+                    kind=item.kind,
+                    status=CandidateStatus.UNCHANGED,
                     detail=detail,
                 )
             )
+            continue
+
+        target = source.with_name(new_name)
+        invalid_reason = validate_windows_name(new_name)
+        if invalid_reason:
+            status = CandidateStatus.INVALID
+            detail = invalid_reason
+        elif target.exists() and _path_key(target) != _path_key(source):
+            status = CandidateStatus.CONFLICT
+            detail = "同一目录中已存在该目标名称"
+        else:
+            status = CandidateStatus.READY
+            detail = "可以安全修改"
+        result.candidates.append(
+            RenameCandidate(
+                source=source,
+                target=target,
+                kind=item.kind,
+                status=status,
+                detail=detail,
+            )
+        )
 
     target_groups: dict[str, list[RenameCandidate]] = defaultdict(list)
     for candidate in result.candidates:
@@ -294,6 +260,26 @@ def scan(options: ScanOptions) -> ScanResult:
         )
     )
     return result
+
+
+def scan(options: ScanOptions) -> ScanResult:
+    """兼容入口：依次生成匹配快照和重命名预览。"""
+
+    snapshot = search_matches(
+        MatchOptions(
+            root=options.root,
+            search=options.search,
+            use_regex=options.use_regex,
+            max_depth=options.max_depth,
+            include_files=options.include_files,
+            include_dirs=options.include_dirs,
+        )
+    )
+    return build_preview(
+        snapshot,
+        options.replacement,
+        rename_extension=options.rename_extension,
+    )
 
 
 def _rename_case_only(source: Path, target: Path) -> None:
