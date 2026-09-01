@@ -218,6 +218,8 @@ def test_regex_template_chooser_filters_by_category_and_exposes_one_click_apply(
     original_templates = REGEX_EXAMPLES
 
     app._show_regex_examples()
+    assert app.active_tool_panel == "templates"
+    assert app.templates_panel.winfo_manager() == "place"
     categories = tuple(app.regex_category_selector.cget("values"))
 
     assert len(categories) >= 4
@@ -238,7 +240,42 @@ def test_regex_template_chooser_filters_by_category_and_exposes_one_click_apply(
     assert visible_titles == expected_titles
     assert REGEX_EXAMPLES is original_templates
 
-    app.regex_examples_window.destroy()
+    app._close_tool_panel()
+
+
+def test_bottom_tool_panels_are_mutually_exclusive_and_collapsible(tk_window):
+    app = BatchRenameApp(tk_window)
+
+    app._toggle_tool_panel("settings")
+    assert app.active_tool_panel == "settings"
+    assert app.settings_panel.winfo_manager() == "place"
+
+    app._toggle_tool_panel("templates")
+    assert app.active_tool_panel == "templates"
+    assert app.settings_panel.winfo_manager() == ""
+    assert app.templates_panel.winfo_manager() == "place"
+
+    app._toggle_tool_panel("templates")
+    assert app.active_tool_panel is None
+    assert app.templates_panel.winfo_manager() == ""
+
+
+def test_escape_and_workspace_click_close_floating_tools(tk_window):
+    app = BatchRenameApp(tk_window)
+    tk_window.deiconify()
+    tk_window.update()
+    tk_window.focus_force()
+    tk_window.update()
+
+    app._toggle_tool_panel("settings")
+    tk_window.event_generate("<Escape>")
+    tk_window.update()
+    assert app.active_tool_panel is None
+
+    app._toggle_tool_panel("templates")
+    app.result_workspace.event_generate("<Button-1>")
+    tk_window.update()
+    assert app.active_tool_panel is None
 
 
 def test_main_window_uses_one_result_table_with_type_column(tk_window):
