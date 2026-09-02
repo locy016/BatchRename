@@ -9,7 +9,7 @@ import sys
 import threading
 import tkinter as tk
 import ctypes
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 from typing import Callable, Iterable
@@ -39,13 +39,70 @@ from .preferences import (
     AppPreferences,
     default_preferences_path,
     load_preferences,
+    normalize_appearance,
     resolve_appearance,
+    save_preferences,
     system_prefers_light,
 )
 
 
 MIN_WINDOW_WIDTH = 1120
 MIN_WINDOW_HEIGHT = 720
+THEME_PALETTES = {
+    "light": {
+        "background": "#F6F7F9",
+        "card": "#FFFFFF",
+        "surface_alt": "#F1F3F6",
+        "sidebar": "#F0F2F5",
+        "sidebar_active": "#E2E5FF",
+        "navy": "#172033",
+        "navy_soft": "#344054",
+        "accent": "#5B5BD6",
+        "accent_hover": "#4848B8",
+        "text": "#182230",
+        "muted": "#667085",
+        "border": "#E4E7EC",
+        "selection": "#E4E7FF",
+        "input": "#FFFFFF",
+        "disabled": "#D0D5DD",
+        "ready": "#16875B",
+        "warning": "#B4690E",
+        "blocked": "#C43D4B",
+        "tooltip": "#FFFFFF",
+        "tooltip_border": "#C7CDD6",
+    },
+    "dark": {
+        "background": "#0F1115",
+        "card": "#171A21",
+        "surface_alt": "#20242D",
+        "sidebar": "#14171D",
+        "sidebar_active": "#292D5C",
+        "navy": "#F4F6F8",
+        "navy_soft": "#D0D5DD",
+        "accent": "#8B8CFF",
+        "accent_hover": "#A5A6FF",
+        "text": "#F3F4F6",
+        "muted": "#98A2B3",
+        "border": "#2D3440",
+        "selection": "#2C3261",
+        "input": "#11141A",
+        "disabled": "#4B5563",
+        "ready": "#45C18B",
+        "warning": "#F0A44B",
+        "blocked": "#F26B77",
+        "tooltip": "#20242D",
+        "tooltip_border": "#475467",
+    },
+}
+
+
+def theme_palette(mode: str) -> dict[str, str]:
+    """返回完整的现代浅色或深色语义色板副本。"""
+
+    resolved = mode if mode in THEME_PALETTES else "light"
+    return dict(THEME_PALETTES[resolved])
+
+
 RESULT_FIXED_COLUMN_WIDTHS = {"kind": 44, "status": 48, "detail": 44}
 RESULT_ELASTIC_MINIMUMS = {
     "compact": {"parent": 90, "old": 130, "new": 150},
@@ -508,8 +565,9 @@ def _tree_cell_content(
 class TreeCellToolTip:
     """在结果单元格被截短时显示完整内容。"""
 
-    def __init__(self, tree: ttk.Treeview) -> None:
+    def __init__(self, tree: ttk.Treeview, colors: dict[str, str] | None = None) -> None:
         self.tree = tree
+        self.colors = colors or theme_palette("light")
         self.window: tk.Toplevel | None = None
         self.after_id: str | None = None
         self.cell: tuple[str, str] | None = None
@@ -554,11 +612,11 @@ class TreeCellToolTip:
             self.window,
             text=f"{heading}\n{value}",
             justify="left",
-            background="#F7FBFD",
-            foreground="#1D2A35",
+            background=self.colors["tooltip"],
+            foreground=self.colors["text"],
             relief="solid",
             borderwidth=1,
-            highlightbackground="#9FB5C5",
+            highlightbackground=self.colors["tooltip_border"],
             highlightthickness=1,
             padx=11,
             pady=8,
@@ -577,6 +635,12 @@ class TreeCellToolTip:
         )
         self.window.wm_geometry(f"+{max(8, target_x)}+{max(8, target_y)}")
 
+    def set_colors(self, colors: dict[str, str]) -> None:
+        """更新下一次显示使用的外观，并关闭仍显示的旧主题提示。"""
+
+        self.hide()
+        self.colors = colors
+
     def hide(self, _event=None) -> None:
         if self.after_id is not None:
             self.tree.after_cancel(self.after_id)
@@ -590,9 +654,15 @@ class TreeCellToolTip:
 class ToolTip:
     """为控件提供延迟显示的多行中文悬停说明。"""
 
-    def __init__(self, widget: tk.Misc, text: str) -> None:
+    def __init__(
+        self,
+        widget: tk.Misc,
+        text: str,
+        colors: dict[str, str] | None = None,
+    ) -> None:
         self.widget = widget
         self.text = text
+        self.colors = colors or theme_palette("light")
         self.window: tk.Toplevel | None = None
         self.after_id: str | None = None
         widget.bind("<Enter>", self._schedule, add="+")
@@ -627,11 +697,11 @@ class ToolTip:
             self.window,
             text=self.text,
             justify="left",
-            background="#F7FBFD",
-            foreground="#1D2A35",
+            background=self.colors["tooltip"],
+            foreground=self.colors["text"],
             relief="solid",
             borderwidth=1,
-            highlightbackground="#9FB5C5",
+            highlightbackground=self.colors["tooltip_border"],
             highlightthickness=1,
             padx=11,
             pady=8,
@@ -643,6 +713,12 @@ class ToolTip:
         target_x = min(x, self.widget.winfo_screenwidth() - self.window.winfo_reqwidth() - 8)
         target_y = min(y, self.widget.winfo_screenheight() - self.window.winfo_reqheight() - 8)
         self.window.wm_geometry(f"+{max(8, target_x)}+{max(8, target_y)}")
+
+    def set_colors(self, colors: dict[str, str]) -> None:
+        """更新提示配色，已展开的提示会在下次悬停时使用新主题。"""
+
+        self._hide()
+        self.colors = colors
 
     def _hide(self, _event=None) -> None:
         self._cancel()
@@ -662,12 +738,14 @@ class TreeColumnTextOverlay:
         foreground: str,
         background: str,
         selected_background: str,
+        tooltip_colors: dict[str, str] | None = None,
     ) -> None:
         self.tree = tree
         self.column = column
         self.foreground = foreground
         self.background = background
         self.selected_background = selected_background
+        self.tooltip_colors = tooltip_colors or theme_palette("light")
         self._labels: list[tk.Label] = []
         self._tooltips: list[ToolTip] = []
         self._refresh_id: str | None = None
@@ -732,8 +810,25 @@ class TreeColumnTextOverlay:
             label.bind("<Button-4>", lambda _event: self._scroll_lines(-1), add="+")
             label.bind("<Button-5>", lambda _event: self._scroll_lines(1), add="+")
             self._labels.append(label)
-            self._tooltips.append(ToolTip(label, ""))
+            self._tooltips.append(ToolTip(label, "", self.tooltip_colors))
         return self._labels[index], self._tooltips[index]
+
+    def set_theme(
+        self,
+        *,
+        foreground: str,
+        background: str,
+        selected_background: str,
+        tooltip_colors: dict[str, str],
+    ) -> None:
+        self.foreground = foreground
+        self.background = background
+        self.selected_background = selected_background
+        self.tooltip_colors = tooltip_colors
+        for label, tooltip in zip(self._labels, self._tooltips):
+            label.configure(foreground=foreground, background=background)
+            tooltip.set_colors(tooltip_colors)
+        self.schedule()
 
     def _select(self, label: tk.Label) -> None:
         item_id = getattr(label, "_tree_item_id", "")
@@ -769,11 +864,15 @@ class TreeCellIconOverlay:
         *,
         background: str,
         selected_background: str,
+        tooltip_colors: dict[str, str] | None = None,
+        icon_colors: dict[str, str] | None = None,
         on_activate: Callable[[str, str], None] | None = None,
     ) -> None:
         self.tree = tree
         self.background = background
         self.selected_background = selected_background
+        self.tooltip_colors = tooltip_colors or theme_palette("light")
+        self.icon_colors = icon_colors or RESULT_ICON_COLORS
         self.on_activate = on_activate
         self._canvases: list[tk.Canvas] = []
         self._tooltips: list[ToolTip] = []
@@ -824,6 +923,10 @@ class TreeCellIconOverlay:
                     continue
                 canvas, tooltip = self._canvas_at(visible_index)
                 spec = result_icon_spec(column, self.tree.set(item_id, column))
+                spec = replace(
+                    spec,
+                    color=self.icon_colors.get(spec.color_name, spec.color),
+                )
                 background = (
                     self.selected_background if item_id in selection else self.background
                 )
@@ -857,8 +960,25 @@ class TreeCellIconOverlay:
             canvas.bind("<Button-4>", lambda _event: self._scroll_lines(-1), add="+")
             canvas.bind("<Button-5>", lambda _event: self._scroll_lines(1), add="+")
             self._canvases.append(canvas)
-            self._tooltips.append(ToolTip(canvas, ""))
+            self._tooltips.append(ToolTip(canvas, "", self.tooltip_colors))
         return self._canvases[index], self._tooltips[index]
+
+    def set_theme(
+        self,
+        *,
+        background: str,
+        selected_background: str,
+        tooltip_colors: dict[str, str],
+        icon_colors: dict[str, str],
+    ) -> None:
+        self.background = background
+        self.selected_background = selected_background
+        self.tooltip_colors = tooltip_colors
+        self.icon_colors = icon_colors
+        for canvas, tooltip in zip(self._canvases, self._tooltips):
+            canvas.configure(background=background)
+            tooltip.set_colors(tooltip_colors)
+        self.schedule()
 
     @staticmethod
     def _draw_icon(
@@ -985,20 +1105,7 @@ class BatchRenameApp:
     POLL_INTERVAL_MS = 80
     RESPONSIVE_DELAY_MS = 120
     RAIL_WIDTHS = {"compact": 64, "standard": 270, "spacious": 300}
-    COLORS = {
-        "background": "#F3F6FA",
-        "card": "#FFFFFF",
-        "navy": "#17324D",
-        "navy_soft": "#284B6B",
-        "accent": "#0F8B8D",
-        "accent_hover": "#0B7476",
-        "text": "#1D2A35",
-        "muted": "#657482",
-        "border": "#DCE4EB",
-        "ready": "#177245",
-        "warning": "#A76500",
-        "blocked": "#A53A3A",
-    }
+    COLORS = theme_palette("light")
 
     def __init__(
         self,
@@ -1021,6 +1128,8 @@ class BatchRenameApp:
             self.requested_appearance,
             self.system_light_provider,
         )
+        self.COLORS = theme_palette(self.resolved_appearance)
+        self._app_tooltips: list[ToolTip] = []
         self.root.title("批量重命名工具")
         self.initial_window_layout = calculate_window_layout(work_area_provider(root))
         self.root.geometry(self.initial_window_layout.geometry)
@@ -1054,6 +1163,7 @@ class BatchRenameApp:
         )
         self.status_var = tk.StringVar(value="请设置目录和规则，然后点击“结果预览”。")
         self.progress_text_var = tk.StringVar(value="等待操作")
+        self.appearance_var = tk.StringVar(value=self.requested_appearance)
         self.directory_context_path_var = tk.StringVar(value=self.directory_var.get())
         self.directory_context_scope_var = tk.StringVar(
             value=directory_scope_text(self.depth_mode_var.get(), self.depth_var.get())
@@ -1084,6 +1194,7 @@ class BatchRenameApp:
         self._build_ui()
         self._apply_responsive_layout(*self.initial_window_layout.size)
         self.root.bind("<Configure>", self._schedule_responsive_layout, add="+")
+        self.root.bind("<FocusIn>", self._on_root_focus_for_theme, add="+")
         self._bind_change_tracking()
         self._update_depth_state()
         self._sync_command_states()
@@ -1437,6 +1548,113 @@ class BatchRenameApp:
             font=("Microsoft YaHei UI", 9),
         )
 
+        # 最后一层只使用语义色板覆盖控件状态，保证浅色与深色外观一致。
+        style.configure("Workflow.TFrame", background=colors["sidebar"])
+        style.configure("WorkflowCard.TFrame", background=colors["sidebar"])
+        style.configure("CompactNav.TFrame", background=colors["sidebar"])
+        for label_style in ("WorkflowTitle.TLabel", "WorkflowHint.TLabel"):
+            style.configure(label_style, background=colors["sidebar"])
+        style.configure(
+            "WorkflowTitle.TLabel",
+            foreground=colors["navy"],
+        )
+        style.configure(
+            "WorkflowHint.TLabel",
+            foreground=colors["muted"],
+        )
+        style.configure(
+            "Workflow.TRadiobutton",
+            background=colors["sidebar"],
+            foreground=colors["text"],
+        )
+        style.map(
+            "Workflow.TRadiobutton",
+            background=[("active", colors["surface_alt"]), ("disabled", colors["sidebar"])],
+            foreground=[("disabled", colors["disabled"])],
+        )
+        style.configure(
+            "CompactNav.TButton",
+            background=colors["sidebar"],
+            foreground=colors["navy_soft"],
+        )
+        style.map(
+            "CompactNav.TButton",
+            background=[("active", colors["sidebar_active"]), ("pressed", colors["selection"])],
+            foreground=[("active", colors["accent"]), ("disabled", colors["disabled"])],
+        )
+        style.configure(
+            "WorkflowSecondary.TButton",
+            background=colors["surface_alt"],
+            foreground=colors["navy"],
+            focuscolor=colors["selection"],
+        )
+        style.map(
+            "WorkflowSecondary.TButton",
+            background=[("active", colors["sidebar_active"]), ("disabled", colors["surface_alt"])],
+            foreground=[("disabled", colors["disabled"])],
+        )
+        style.map(
+            "WorkflowAccent.TButton",
+            background=[("active", colors["accent_hover"]), ("disabled", colors["disabled"])],
+        )
+        style.configure("Header.TFrame", background=colors["surface_alt"])
+        style.configure("HeaderTitle.TLabel", background=colors["surface_alt"], foreground=colors["text"])
+        style.configure("HeaderSubtitle.TLabel", background=colors["surface_alt"], foreground=colors["muted"])
+        style.configure("Icon.TLabel", background=colors["sidebar_active"], foreground=colors["accent"])
+        style.configure("MatchStats.TLabel", background=colors["surface_alt"])
+        style.configure("MatchStatTitle.TLabel", background=colors["surface_alt"])
+        style.configure("MatchStatValue.TLabel", background=colors["surface_alt"])
+        for option_style in ("Card.TCheckbutton", "Card.TRadiobutton"):
+            style.map(
+                option_style,
+                background=[("active", colors["surface_alt"]), ("disabled", colors["card"])],
+                foreground=[("disabled", colors["disabled"])],
+            )
+        for input_style in ("Modern.TEntry", "Modern.TSpinbox", "Modern.TCombobox"):
+            style.configure(input_style, fieldbackground=colors["input"], foreground=colors["text"])
+        style.map(
+            "Modern.TEntry",
+            fieldbackground=[("disabled", colors["surface_alt"])],
+            foreground=[("disabled", colors["disabled"])],
+        )
+        style.map(
+            "Modern.TSpinbox",
+            fieldbackground=[("disabled", colors["surface_alt"])],
+            foreground=[("disabled", colors["disabled"])],
+            arrowcolor=[("active", colors["accent"]), ("disabled", colors["disabled"])],
+        )
+        style.map("Modern.TCombobox", fieldbackground=[("readonly", colors["input"])])
+        style.configure("Secondary.TButton", background=colors["surface_alt"], foreground=colors["navy"])
+        style.map("Secondary.TButton", background=[("active", colors["sidebar_active"])])
+        style.configure(
+            "Treeview",
+            background=colors["card"],
+            fieldbackground=colors["card"],
+            foreground=colors["text"],
+        )
+        style.map(
+            "Treeview",
+            background=[("selected", colors["selection"])],
+            foreground=[("selected", colors["text"])],
+        )
+        style.configure("Treeview.Heading", background=colors["surface_alt"], foreground=colors["navy"])
+        style.map("Treeview.Heading", background=[("active", colors["sidebar_active"])])
+        for orientation in ("Horizontal", "Vertical"):
+            style.configure(
+                f"Modern.{orientation}.TScrollbar",
+                troughcolor=colors["surface_alt"],
+                background=colors["disabled"],
+                bordercolor=colors["surface_alt"],
+                lightcolor=colors["disabled"],
+                darkcolor=colors["disabled"],
+            )
+        style.configure(
+            "Modern.Horizontal.TProgressbar",
+            troughcolor=colors["surface_alt"],
+            bordercolor=colors["surface_alt"],
+        )
+        style.configure("Status.TLabel", background=colors["surface_alt"], foreground=colors["navy_soft"])
+
     def _load_application_icon(self) -> None:
         base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
         icon_path = base / "assets" / "app-icon.png"
@@ -1505,9 +1723,9 @@ class BatchRenameApp:
         self._input_widgets.extend(
             [self.compact_templates_button, self.compact_settings_button]
         )
-        ToolTip(self.workflow_nav_button, "展开或收起完整重命名流程。")
-        ToolTip(self.compact_templates_button, "打开常用正则模板。")
-        ToolTip(self.compact_settings_button, "打开扫描与预览设置。")
+        self._tooltip(self.workflow_nav_button, "展开或收起完整重命名流程。")
+        self._tooltip(self.compact_templates_button, "打开常用正则模板。")
+        self._tooltip(self.compact_settings_button, "打开扫描与预览设置。")
         navigation.grid_remove()
 
     def _schedule_responsive_layout(self, event: tk.Event) -> None:
@@ -1643,12 +1861,124 @@ class BatchRenameApp:
         self.log_menu_index = self.feature_menu.index("end")
         self.top_menu.add_cascade(label="功能", menu=self.feature_menu)
 
+        self.view_menu = tk.Menu(self.top_menu, tearoff=False)
+        self.appearance_menu = tk.Menu(self.view_menu, tearoff=False)
+        for label, value in (
+            ("跟随系统", "system"),
+            ("浅色", "light"),
+            ("深色", "dark"),
+        ):
+            self.appearance_menu.add_radiobutton(
+                label=label,
+                value=value,
+                variable=self.appearance_var,
+                command=lambda selected=value: self.set_appearance(selected),
+            )
+        self.view_menu.add_cascade(label="外观", menu=self.appearance_menu)
+        self.top_menu.add_cascade(label="视图", menu=self.view_menu)
+
         self.help_menu = tk.Menu(self.top_menu, tearoff=False)
         self.help_menu.add_command(label="使用说明", command=self._show_help)
         self.help_menu.add_command(label="关于", command=self._show_about)
         self.top_menu.add_cascade(label="帮助", menu=self.help_menu)
         self.root.configure(menu=self.top_menu)
         self.root.bind("<F1>", lambda _event: self._show_help())
+
+    def set_appearance(self, mode: str, *, persist: bool = True) -> None:
+        """切换外观并原地重绘，不重建业务控件或清空状态。"""
+
+        requested = normalize_appearance(mode)
+        resolved = resolve_appearance(requested, self.system_light_provider)
+        self.requested_appearance = requested
+        self.appearance_var.set(requested)
+        if persist:
+            try:
+                save_preferences(AppPreferences(appearance=requested), self.preferences_path)
+            except OSError as exc:
+                if hasattr(self, "status_var"):
+                    self.status_var.set(f"外观已切换，但无法保存设置：{exc}")
+        if resolved == self.resolved_appearance and hasattr(self, "result_tree"):
+            return
+        self.resolved_appearance = resolved
+        self.COLORS = theme_palette(resolved)
+        self.root.configure(background=self.COLORS["background"])
+        self._configure_style()
+        if hasattr(self, "result_tree"):
+            self._apply_runtime_theme()
+
+    def _refresh_system_appearance(self) -> None:
+        if self.requested_appearance != "system":
+            return
+        self.set_appearance("system", persist=False)
+
+    def _on_root_focus_for_theme(self, event: tk.Event) -> None:
+        if event.widget is self.root:
+            self._refresh_system_appearance()
+
+    def _result_icon_theme_colors(self) -> dict[str, str]:
+        return {
+            "neutral": self.COLORS["navy_soft"],
+            "ready": self.COLORS["ready"],
+            "warning": self.COLORS["warning"],
+            "blocked": self.COLORS["blocked"],
+            "pending": self.COLORS["accent"],
+            "info": self.COLORS["accent"],
+        }
+
+    def _tooltip(self, widget: tk.Misc, text: str) -> ToolTip:
+        tooltip = ToolTip(widget, text, self.COLORS)
+        self._app_tooltips.append(tooltip)
+        return tooltip
+
+    def _apply_runtime_theme(self) -> None:
+        """重绘无法只靠 ttk 样式自动更新的原生与覆盖层组件。"""
+
+        colors = self.COLORS
+        menu_options = {
+            "background": colors["card"],
+            "foreground": colors["text"],
+            "activebackground": colors["selection"],
+            "activeforeground": colors["text"],
+            "selectcolor": colors["accent"],
+        }
+        for menu_name in (
+            "top_menu",
+            "file_menu",
+            "feature_menu",
+            "view_menu",
+            "appearance_menu",
+            "help_menu",
+        ):
+            menu = getattr(self, menu_name, None)
+            if menu is not None:
+                menu.configure(**menu_options)
+        if hasattr(self, "regex_template_list"):
+            self.regex_template_list.configure(
+                background=colors["input"],
+                foreground=colors["text"],
+                highlightbackground=colors["border"],
+                highlightcolor=colors["accent"],
+                selectbackground=colors["accent"],
+                selectforeground=colors["card"],
+            )
+        self.new_name_overlay.set_theme(
+            foreground=colors["accent"],
+            background=colors["card"],
+            selected_background=colors["selection"],
+            tooltip_colors=colors,
+        )
+        self.result_icon_overlay.set_theme(
+            background=colors["card"],
+            selected_background=colors["selection"],
+            tooltip_colors=colors,
+            icon_colors=self._result_icon_theme_colors(),
+        )
+        self.result_cell_tooltip.set_colors(colors)
+        for tooltip in self._app_tooltips:
+            tooltip.set_colors(colors)
+        self.result_tree.tag_configure("blocked", foreground=colors["blocked"])
+        self.result_tree.tag_configure("ready", foreground=colors["ready"])
+        self.result_tree.tag_configure("unchanged", foreground=colors["warning"])
 
     def _build_workflow_rail(self, parent: ttk.Frame) -> None:
         rail = ttk.Frame(parent, style="Workflow.TFrame", width=270, padding=(12, 6))
@@ -1761,10 +2091,10 @@ class BatchRenameApp:
                 self.settings_tool_button,
             ]
         )
-        ToolTip(self.directory_entry, "扫描起点；根目录本身不会改名。")
-        ToolTip(self.search_button, "只查找名称匹配项，不计算新名称，也不会修改磁盘。")
-        ToolTip(self.preview_button, "根据刚才的匹配快照计算新名称和安全状态，不会重新扫描目录。")
-        ToolTip(self.execute_button, "只执行预览中状态为“可修改”的项目，并在执行前再次确认。")
+        self._tooltip(self.directory_entry, "扫描起点；根目录本身不会改名。")
+        self._tooltip(self.search_button, "只查找名称匹配项，不计算新名称，也不会修改磁盘。")
+        self._tooltip(self.preview_button, "根据刚才的匹配快照计算新名称和安全状态，不会重新扫描目录。")
+        self._tooltip(self.execute_button, "只执行预览中状态为“可修改”的项目，并在执行前再次确认。")
 
     def _build_result_workspace(self, parent: ttk.Frame) -> None:
         workspace = ttk.Frame(parent, style="App.TFrame")
@@ -2042,11 +2372,11 @@ class BatchRenameApp:
         self.directory_entry.grid(row=1, column=1, padx=0, pady=5, sticky="ew", ipady=4)
         browse = ttk.Button(frame, text="选择…", style="Secondary.TButton", command=self._choose_directory)
         browse.grid(row=1, column=2, padx=(8, 0), pady=5)
-        ToolTip(
+        self._tooltip(
             self.directory_entry,
             "要扫描的起始目录。根目录本身不会被重命名，只处理它内部的文件夹和文件。",
         )
-        ToolTip(browse, "从系统目录选择器中选择扫描起点。")
+        self._tooltip(browse, "从系统目录选择器中选择扫描起点。")
         self._input_widgets.extend([self.directory_entry, browse])
 
         depth_row = ttk.Frame(frame, style="Card.TFrame")
@@ -2083,7 +2413,7 @@ class BatchRenameApp:
         )
         self.depth_spin.pack(side="left", padx=5)
         ttk.Label(depth_row, text="层", style="Unit.TLabel").pack(side="left")
-        ToolTip(
+        self._tooltip(
             depth_row,
             "第 1 层是根目录中的直接子项；第 2 层是直接子文件夹中的项目，以此类推。符号链接不会被跟随。",
         )
@@ -2133,8 +2463,8 @@ class BatchRenameApp:
             style="Modern.TEntry",
         )
         self.replacement_entry.grid(row=1, column=4, pady=3, sticky="ew", ipady=3)
-        ToolTip(self.search_entry, "普通模式：输入要查找的原样文本。正则模式：输入 Python 正则表达式。不能为空。")
-        ToolTip(self.replacement_entry, "可留空，表示删除匹配内容。正则模式可使用 \\1 或 \\g<名称> 引用捕获组。")
+        self._tooltip(self.search_entry, "普通模式：输入要查找的原样文本。正则模式：输入 Python 正则表达式。不能为空。")
+        self._tooltip(self.replacement_entry, "可留空，表示删除匹配内容。正则模式可使用 \\1 或 \\g<名称> 引用捕获组。")
 
         options = ttk.Frame(frame, style="Card.TFrame")
         options.grid(row=2, column=0, columnspan=5, sticky="ew", pady=(4, 1))
@@ -2163,15 +2493,15 @@ class BatchRenameApp:
                 self.regex_templates_button,
             ]
         )
-        ToolTip(regex, "关闭时按普通文本查找；开启后使用 Python 正则语法，例如 (\\d{4})-(\\d{2})。")
-        ToolTip(dirs, "勾选后，名称匹配的子文件夹会进入预览。")
-        ToolTip(files, "勾选后，名称匹配的文件会进入预览。")
-        ToolTip(extension, "默认保护最后一个扩展名。例如查找 jpg 不会改变照片.jpg；开启后才会处理整个文件名。")
-        ToolTip(
+        self._tooltip(regex, "关闭时按普通文本查找；开启后使用 Python 正则语法，例如 (\\d{4})-(\\d{2})。")
+        self._tooltip(dirs, "勾选后，名称匹配的子文件夹会进入预览。")
+        self._tooltip(files, "勾选后，名称匹配的文件会进入预览。")
+        self._tooltip(extension, "默认保护最后一个扩展名。例如查找 jpg 不会改变照片.jpg；开启后才会处理整个文件名。")
+        self._tooltip(
             self.regex_templates_button,
             "按用途选择经过验证的常用正则规则，查看处理前后效果并一键填入主窗口。",
         )
-        ToolTip(
+        self._tooltip(
             self.search_scan_button,
             "使用当前全部规则生成结果预览；在查找框按 Enter 也可执行相同操作。",
         )
@@ -2201,7 +2531,7 @@ class BatchRenameApp:
         self.directory_context_path_label.grid(
             row=1, column=0, sticky="ew", padx=(0, 16)
         )
-        self.directory_path_tooltip = ToolTip(
+        self.directory_path_tooltip = self._tooltip(
             self.directory_context_path_label,
             self.directory_context_path_var.get(),
         )
@@ -2262,7 +2592,7 @@ class BatchRenameApp:
         ttk.Label(heading, text="条", style="Unit.TLabel").grid(
             row=0, column=4, padx=(4, 0)
         )
-        ToolTip(
+        self._tooltip(
             self.preview_spin,
             "仅控制表格显示数量，不改变完整匹配统计和最终执行数量。文件夹优先，同类按名称自然排序。",
         )
@@ -2334,12 +2664,15 @@ class BatchRenameApp:
             "new",
             foreground=self.COLORS["accent"],
             background=self.COLORS["card"],
-            selected_background="#D9EAF2",
+            selected_background=self.COLORS["selection"],
+            tooltip_colors=self.COLORS,
         )
         self.result_icon_overlay = TreeCellIconOverlay(
             tree,
             background=self.COLORS["card"],
-            selected_background="#D9EAF2",
+            selected_background=self.COLORS["selection"],
+            tooltip_colors=self.COLORS,
+            icon_colors=self._result_icon_theme_colors(),
             on_activate=self._show_result_item_details,
         )
         tree.bind("<Configure>", self._on_result_tree_configure, add="+")
@@ -2370,12 +2703,12 @@ class BatchRenameApp:
         tree.grid(row=1, column=0, sticky="nsew")
         ybar.grid(row=1, column=1, sticky="ns")
         xbar.grid(row=2, column=0, sticky="ew")
-        tree.tag_configure("blocked", foreground="#9b2c2c")
-        tree.tag_configure("ready", foreground="#176b34")
+        tree.tag_configure("blocked", foreground=self.COLORS["blocked"])
+        tree.tag_configure("ready", foreground=self.COLORS["ready"])
         tree.tag_configure("unchanged", foreground=self.COLORS["warning"])
         self.result_scrollbar = ybar
         self.result_horizontal_scrollbar = xbar
-        self.result_cell_tooltip = TreeCellToolTip(tree)
+        self.result_cell_tooltip = TreeCellToolTip(tree, self.COLORS)
         return tree
 
     def _build_progress_frame(self, parent: ttk.Frame) -> None:
@@ -2394,7 +2727,7 @@ class BatchRenameApp:
             padding=(8, 2),
         )
         status.pack(fill="x", side="bottom")
-        ToolTip(status, "状态栏会提示当前结果和建议的下一步操作。")
+        self._tooltip(status, "状态栏会提示当前结果和建议的下一步操作。")
 
     def _bind_change_tracking(self) -> None:
         scope_variables = [

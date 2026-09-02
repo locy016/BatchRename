@@ -22,6 +22,7 @@ from batch_rename.app import (
     result_parent_text,
     sorted_preview_items,
     summarize_candidates,
+    theme_palette,
 )
 from batch_rename.examples import REGEX_EXAMPLES
 from batch_rename.models import (
@@ -32,7 +33,7 @@ from batch_rename.models import (
     RenameCandidate,
     ScanResult,
 )
-from batch_rename.preferences import AppPreferences, save_preferences
+from batch_rename.preferences import AppPreferences, load_preferences, save_preferences
 
 
 @pytest.fixture(scope="session")
@@ -95,6 +96,90 @@ def test_app_loads_requested_appearance_without_touching_real_user_settings(
     assert app.requested_appearance == "dark"
     assert app.resolved_appearance == "dark"
     assert app.preferences_path == preferences_path
+
+
+def test_modern_theme_palettes_define_complete_light_and_dark_tokens():
+    required = {
+        "background",
+        "card",
+        "surface_alt",
+        "sidebar",
+        "text",
+        "muted",
+        "border",
+        "accent",
+        "accent_hover",
+        "selection",
+        "input",
+        "disabled",
+        "ready",
+        "warning",
+        "blocked",
+        "tooltip",
+    }
+
+    light = theme_palette("light")
+    dark = theme_palette("dark")
+
+    assert required <= light.keys()
+    assert required <= dark.keys()
+    assert light["background"] != dark["background"]
+    assert light["text"] != dark["text"]
+    assert light["accent"] != dark["accent"]
+
+
+def test_switching_appearance_repaints_in_place_and_preserves_workflow_state(
+    tk_window, tmp_path
+):
+    preferences_path = tmp_path / "settings.json"
+    app = BatchRenameApp(
+        tk_window,
+        preferences_path=preferences_path,
+        system_light_provider=lambda: True,
+    )
+    search_var = app.search_var
+    replacement_var = app.replacement_var
+    matches = match_result()
+    preview = scan_result()
+    app.search_var.set("项目")
+    app.replacement_var.set("客户")
+    app._last_matches = matches
+    app._last_scan = preview
+
+    app.set_appearance("dark")
+
+    assert app.requested_appearance == "dark"
+    assert app.resolved_appearance == "dark"
+    assert app.appearance_var.get() == "dark"
+    assert load_preferences(preferences_path).appearance == "dark"
+    assert app.search_var is search_var and app.search_var.get() == "项目"
+    assert app.replacement_var is replacement_var and app.replacement_var.get() == "客户"
+    assert app._last_matches is matches
+    assert app._last_scan is preview
+    assert tk_window.cget("background") == theme_palette("dark")["background"]
+    assert ttk.Style(tk_window).lookup("Treeview", "background") == theme_palette("dark")["card"]
+    assert app.new_name_overlay.background == theme_palette("dark")["card"]
+    assert app.result_icon_overlay.background == theme_palette("dark")["card"]
+
+
+def test_follow_system_rechecks_resolved_theme_without_changing_requested_mode(
+    tk_window, tmp_path
+):
+    system = {"light": True}
+    app = BatchRenameApp(
+        tk_window,
+        preferences_path=tmp_path / "settings.json",
+        system_light_provider=lambda: system["light"],
+    )
+    app.set_appearance("system")
+    assert app.resolved_appearance == "light"
+
+    system["light"] = False
+    app._refresh_system_appearance()
+
+    assert app.requested_appearance == "system"
+    assert app.appearance_var.get() == "system"
+    assert app.resolved_appearance == "dark"
 
 
 @pytest.mark.parametrize(
@@ -649,7 +734,7 @@ def test_directory_overview_uses_snapshot_counts_and_keeps_full_path_tooltip(
 def test_top_menu_contains_only_global_commands(tk_window):
     app = BatchRenameApp(tk_window)
 
-    assert menu_labels(app.top_menu) == ("文件", "功能", "帮助")
+    assert menu_labels(app.top_menu) == ("文件", "功能", "视图", "帮助")
     assert menu_labels(app.file_menu) == ("退出",)
     assert menu_labels(app.feature_menu) == (
         "结果详情",
@@ -657,6 +742,8 @@ def test_top_menu_contains_only_global_commands(tk_window):
         "操作日志（开发中）",
     )
     assert menu_labels(app.help_menu) == ("使用说明", "关于")
+    assert menu_labels(app.view_menu) == ("外观",)
+    assert menu_labels(app.appearance_menu) == ("跟随系统", "浅色", "深色")
     assert app.feature_menu.entrycget(app.undo_menu_index, "state") == "disabled"
     assert app.feature_menu.entrycget(app.log_menu_index, "state") == "disabled"
 
@@ -669,6 +756,7 @@ def test_top_menu_contains_only_global_commands(tk_window):
     top_commands = set(
         menu_labels(app.file_menu)
         + menu_labels(app.feature_menu)
+        + menu_labels(app.view_menu)
         + menu_labels(app.help_menu)
     )
     assert workflow_labels.isdisjoint(top_commands)
