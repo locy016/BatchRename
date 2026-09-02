@@ -1,52 +1,50 @@
 <div align="center">
   <img src="Python/assets/app-icon.png" width="112" alt="批量重命名应用图标">
-  <h1>批量重命名</h1>
+  <h1>BatchRename 批量重命名</h1>
   <p>面向 Windows 多层目录的安全名称整理工具</p>
 </div>
 
-## 当前可用版本
+## BatchRename 2.0
 
-当前稳定开发版本位于 [`Python`](Python/) 子项目，已经提供名称扫描、结果预览、普通文本与正则替换、安全执行、操作日志和整批撤回。它仍可独立运行、测试并通过 PyInstaller 生成 Windows 单文件程序。
+2.0 采用 Rust、Tauri 2 和 Vue 3 构建，在保持 Python 版安全语义与日志格式兼容的基础上，让大目录扫描、结果浏览和操作管理保持流畅。当前版本为 `2.0.0-alpha.1` 测试候选。
 
-- [查看当前产品介绍](Python/README.md)
-- [查看 Python 版开发日志](Python/CHANGELOG.md)
-- [查看 Python 版源码](Python/batch_rename/)
+它适合整理照片、项目资料、日期文件、编号文档和带有重复标签的目录：先按名称查询，查看完整匹配数和前 100 条安全预览，确认后才执行。替换后名称不变的项目仍会列出并解释原因，不会把“找到但无需修改”误显示为零。
 
-![当前 Python 版主工作台](Python/docs/images/batch-rename-main.png)
+主要能力：
 
-## 下一代桌面版本
+- 当前目录及指定 1–N 层或全部层级扫描，文件夹与文件统一分类、自然名称排序。
+- 普通文本和 Python 风格正则替换，默认保护扩展名，内置 15 个带前后示例的一键模板。
+- 目标占用、批内重复、Windows 非法名称和名称未变化的预览门禁。
+- 子项目优先、执行时二次检查、仅大小写安全改名和逐项原子操作日志。
+- 关键词与状态历史查询、详情延迟加载、整批撤回预检、逆序恢复和失败重试。
+- 跟随系统、浅色、深色三态外观，以及标准屏幕、宽屏和窄屏响应式布局。
 
-项目准备采用 Rust、Tauri 2、Vue 3、TypeScript、Vue Router、Pinia 和 Element Plus 重建桌面版本。新架构的目标不是机械翻译界面代码，而是保持现有安全行为和历史日志兼容，同时拆分扫描、预览、执行、日志、撤回与界面状态，减少长期迭代形成的耦合和交互延迟。
+## 下载与构建产物
 
-下一代版本会与 Python 版并行验证。只有扫描、正则、冲突判断、执行顺序、异常日志和撤回行为通过兼容测试后，才会替换当前发行版。
+Windows 构建同时产生两种候选：
 
-- [查看 BatchRename 2.0 架构设计](docs/plans/2026-09-02-tauri-vue-rewrite-design.md)
-- [查看分阶段实施计划](docs/plans/2026-09-02-tauri-vue-rewrite-implementation.md)
+- NSIS 安装包：适合日常安装使用，位于 `src-tauri\target\release\bundle\nsis`。
+- 原始 EXE：无需安装的便携测试候选，位于 `src-tauri\target\release\batch-rename.exe`。
 
-## Python 版运行与构建
-
-```powershell
-cd Python
-python main.py
-python -m pytest -q
-powershell -ExecutionPolicy Bypass -File .\build.ps1
-```
-
-也可以从仓库根目录直接构建：
+从源码验证并构建：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Python\build.ps1
+powershell -NoProfile -File .\scripts\build-release.ps1
+powershell -NoProfile -File .\scripts\smoke-test-release.ps1
 ```
 
-构建产物位于 `Python\dist\BatchRename.exe`。
+需要 Node.js 24 LTS、Rust stable-msvc、Visual Studio C++ Build Tools 和 WebView2 Runtime。
 
-## 仓库结构
+## Python 版
 
-```text
-BatchRename/
-├─ Python/      当前可运行、可测试、可构建的 Python 版本
-├─ docs/        下一代架构设计与实施计划（计划阶段创建）
-└─ README.md    整体项目入口
-```
+成熟的 Python 版本完整保留在 [`Python`](Python/) 子项目中，可独立运行、测试或用 PyInstaller 构建单文件程序。迁移期需要继续使用原界面或验证旧工作流时，请查看 [Python 版产品说明](Python/README.md)。
+
+## 安全与数据
+
+根目录自身不会改名。操作日志保存在 `%LOCALAPPDATA%\BatchRename\operations`，外观设置保存在 `%LOCALAPPDATA%\BatchRename\settings.json`。软件在执行和撤回前会再次检查磁盘状态，但重要资料仍应先行备份。
+
+- [2.0 架构设计](docs/plans/2026-09-02-tauri-vue-rewrite-design.md)
+- [实施与验证计划](docs/plans/2026-09-02-tauri-vue-rewrite-implementation.md)
+- [性能对比](docs/benchmarks/2026-09-02-tauri-comparison.md)
 
 联系作者：`lo.c@live.cn`

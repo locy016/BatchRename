@@ -12,7 +12,7 @@ export interface DesktopApi { chooseDirectory():Promise<string|null>; startScan(
 
 const inDesktop = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 function events<T>(handler:(event:T)=>void){const channel=new Channel<T>();channel.onmessage=handler;return channel}
-function desktopOnly<T>(command:string,args?:object):Promise<T>{return inDesktop()?invoke<T>(command,args):Promise.reject(new Error('当前为浏览器预览环境'))}
+function desktopOnly<T>(command:string,args?:Record<string,unknown>):Promise<T>{return inDesktop()?invoke<T>(command,args):Promise.reject(new Error('当前为浏览器预览环境'))}
 
 export const desktopApi:DesktopApi={
   async chooseDirectory(){if(!inDesktop())return null;const value=await open({directory:true,multiple:false});return typeof value==='string'?value:null},
