@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ItemKind {
     #[serde(rename = "文件夹")]
@@ -10,7 +9,6 @@ pub enum ItemKind {
     #[serde(rename = "文件")]
     File,
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CandidateStatus {
@@ -28,7 +26,6 @@ pub enum CandidateStatus {
     Error,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MatchOptions {
@@ -40,14 +37,12 @@ pub struct MatchOptions {
     pub include_dirs: bool,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MatchedItem {
     pub source: PathBuf,
     pub kind: ItemKind,
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,7 +53,6 @@ pub struct RenameCandidate {
     pub status: CandidateStatus,
     pub detail: String,
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OperationStatus {
@@ -84,7 +78,6 @@ pub enum OperationStatus {
     Corrupt,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UndoStatus {
     #[serde(rename = "待撤回")]
@@ -97,7 +90,6 @@ pub enum UndoStatus {
     NotApplicable,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OperationItemV1 {
     pub source: PathBuf,
@@ -109,7 +101,6 @@ pub struct OperationItemV1 {
     pub undo_status: UndoStatus,
     pub undo_detail: String,
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OperationLogV1 {

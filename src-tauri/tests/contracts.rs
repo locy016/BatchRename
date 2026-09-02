@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use batch_rename_lib::domain::models::{OperationLogV1, OperationStatus};
 
-
 fn fixture_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
@@ -13,13 +12,15 @@ fn fixture_path(name: &str) -> PathBuf {
         .join(name)
 }
 
-
 #[test]
 fn reads_all_python_operation_log_states() {
     let expected = [
         ("operation-completed-v1.json", OperationStatus::Completed),
         ("operation-partial-v1.json", OperationStatus::Partial),
-        ("operation-interrupted-v1.json", OperationStatus::Interrupted),
+        (
+            "operation-interrupted-v1.json",
+            OperationStatus::Interrupted,
+        ),
         (
             "operation-partially-undone-v1.json",
             OperationStatus::PartiallyUndone,
@@ -34,7 +35,6 @@ fn reads_all_python_operation_log_states() {
         assert!(!operation.items.is_empty());
     }
 }
-
 
 #[test]
 fn round_trips_persisted_chinese_enums() {
