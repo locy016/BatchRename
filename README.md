@@ -20,6 +20,9 @@
 
 下一代版本会与 Python 版并行验证。只有扫描、正则、冲突判断、执行顺序、异常日志和撤回行为通过兼容测试后，才会替换当前发行版。
 
+- [查看 BatchRename 2.0 架构设计](docs/plans/2026-09-02-tauri-vue-rewrite-design.md)
+- [查看分阶段实施计划](docs/plans/2026-09-02-tauri-vue-rewrite-implementation.md)
+
 ## Python 版运行与构建
 
 ```powershell
