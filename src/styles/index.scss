@@ -1,7 +1,10 @@
+@use './tokens.scss';
+@use './element.scss';
+
 :root {
   font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
-  color: #172033;
-  background: #f5f7fa;
+  color: var(--text);
+  background: var(--app-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
