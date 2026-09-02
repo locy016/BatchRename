@@ -1,0 +1,19 @@
+[package]
+name = "batch-rename"
+version = "2.0.0-alpha.1"
+description = "面向 Windows 多层目录的安全名称整理工具"
+authors = ["locy016"]
+edition = "2024"
+
+[lib]
+name = "batch_rename_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
