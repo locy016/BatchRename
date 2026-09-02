@@ -17,6 +17,12 @@ def test_build_script_is_compatible_with_windows_powershell_5_encoding():
     )
 
 
+def test_build_script_uses_its_own_directory_as_the_working_directory():
+    script = Path("build.ps1").read_text(encoding="utf-8-sig")
+
+    assert 'Set-Location -LiteralPath $PSScriptRoot' in script
+
+
 def test_application_icon_has_transparent_png_and_windows_sizes():
     png_path = Path("assets/app-icon.png")
     ico_path = Path("assets/app-icon.ico")

@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+Set-Location -LiteralPath $PSScriptRoot
 
 Write-Host "[1/3] Checking build tools..." -ForegroundColor Cyan
 python -c "import pytest, PyInstaller; print('pytest', pytest.__version__, '| PyInstaller', PyInstaller.__version__)"
