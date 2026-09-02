@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "plain-text",
+      "search": "旧版",
+      "replacement": "正式",
+      "input": "项目旧版.txt",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "项目正式.txt",
+      "expectedError": null
+    },
+    {
+      "id": "protected-extension",
+      "search": "txt",
+      "replacement": "md",
+      "input": "说明.txt",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "说明.txt",
+      "expectedError": null
+    },
+    {
+      "id": "unchanged",
+      "search": "报告",
+      "replacement": "报告",
+      "input": "报告.docx",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "报告.docx",
+      "expectedError": null
+    },
+    {
+      "id": "invalid-reference",
+      "search": "(报告)",
+      "replacement": "\\9",
+      "input": "报告.docx",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": null,
+      "expectedError": "invalidReplacementReference"
+    },
+    {
+      "id": "template-01",
+      "search": "(\\d{4})-(\\d{2})-(\\d{2})",
+      "replacement": "\\1\\2\\3",
+      "input": "会议纪要_2026-08-27.docx",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "会议纪要_20260827.docx",
+      "expectedError": null
+    },
+    {
+      "id": "template-02",
+      "search": "(\\d{4})[._/](\\d{2})[._/](\\d{2})",
+      "replacement": "\\1-\\2-\\3",
+      "input": "会议纪要_2026.08.27.docx",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "会议纪要_2026-08-27.docx",
+      "expectedError": null
+    },
+    {
+      "id": "template-03",
+      "search": "^(.+?)[_-](\\d{4}-\\d{2}-\\d{2})$",
+      "replacement": "\\2_\\1",
+      "input": "日报_2026-08-27.docx",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "2026-08-27_日报.docx",
+      "expectedError": null
+    },
+    {
+      "id": "template-04",
+      "search": "IMG_(\\d+)",
+      "replacement": "照片_\\1",
+      "input": "IMG_001.jpg",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "照片_001.jpg",
+      "expectedError": null
+    },
+    {
+      "id": "template-05",
+      "search": "^(\\d+)[-_ ]*",
+      "replacement": "编号\\1_",
+      "input": "012-报告.txt",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "编号012_报告.txt",
+      "expectedError": null
+    },
+    {
+      "id": "template-06",
+      "search": "^第?(\\d+)[-_、. ]+",
+      "replacement": "\\1_",
+      "input": "第12、方案.docx",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "12_方案.docx",
+      "expectedError": null
+    },
+    {
+      "id": "template-07",
+      "search": "\\[[^\\]]+\\]",
+      "replacement": "",
+      "input": "[已审核]合同.docx",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "合同.docx",
+      "expectedError": null
+    },
+    {
+      "id": "template-08",
+      "search": "[\\(（][^\\)）]+[\\)）]",
+      "replacement": "",
+      "input": "合同（已审核）.docx",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "合同.docx",
+      "expectedError": null
+    },
+    {
+      "id": "template-09",
+      "search": "^\\s+|\\s+$",
+      "replacement": "",
+      "input": "  会议纪要  .docx",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "会议纪要.docx",
+      "expectedError": null
+    },
+    {
+      "id": "template-10",
+      "search": "\\s{2,}",
+      "replacement": " ",
+      "input": "项目  最终  版本.txt",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "项目 最终 版本.txt",
+      "expectedError": null
+    },
+    {
+      "id": "template-11",
+      "search": "[-_\\s]{2,}",
+      "replacement": "_",
+      "input": "项目---最终__版本.txt",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "项目_最终_版本.txt",
+      "expectedError": null
+    },
+    {
+      "id": "template-12",
+      "search": "^(旧版|临时)[-_ ]?",
+      "replacement": "",
+      "input": "旧版-合同.docx",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "合同.docx",
+      "expectedError": null
+    },
+    {
+      "id": "template-13",
+      "search": "[_-](副本|copy)$",
+      "replacement": "",
+      "input": "预算_副本.xlsx",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "预算.xlsx",
+      "expectedError": null
+    },
+    {
+      "id": "template-14",
+      "search": "(.+)_([A-Z]+)",
+      "replacement": "\\2_\\1",
+      "input": "project_FINAL.txt",
+      "isFile": true,
+      "renameExtension": false,
+      "expectedName": "FINAL_project.txt",
+      "expectedError": null
+    },
+    {
+      "id": "template-15",
+      "search": "(?i)\\.jpe?g$",
+      "replacement": ".jpg",
+      "input": "照片.JPEG",
+      "isFile": true,
+      "renameExtension": true,
+      "expectedName": "照片.jpg",
+      "expectedError": null
+    }
+  ]
+}

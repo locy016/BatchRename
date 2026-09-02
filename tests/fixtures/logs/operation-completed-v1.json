@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "identifier": "demo-completed-v1",
+  "created_at": "2026-09-02T10:00:00+08:00",
+  "updated_at": "2026-09-02T10:00:00+08:00",
+  "root": "示例资料\\项目A",
+  "search": "旧版",
+  "replacement": "正式",
+  "use_regex": false,
+  "max_depth": null,
+  "include_files": true,
+  "include_dirs": true,
+  "rename_extension": false,
+  "status": "已完成",
+  "items": [
+    {
+      "source": "示例资料\\项目A\\项目旧版.txt",
+      "target": "示例资料\\项目A\\项目正式.txt",
+      "kind": "文件",
+      "outcome": "成功",
+      "detail": "重命名完成",
+      "execution_index": 1,
+      "undo_status": "待撤回",
+      "undo_detail": ""
+    }
+  ],
+  "error": ""
+}
