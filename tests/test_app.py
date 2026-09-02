@@ -1013,7 +1013,7 @@ def test_default_layout_uses_content_sized_minimum_and_expands_the_result_area(t
 
 @pytest.mark.parametrize(
     ("width", "mode", "rail_width"),
-    [(960, "compact", 64), (1280, "standard", 270), (1600, "spacious", 300)],
+    [(960, "compact", 64), (1280, "standard", 288), (1600, "spacious", 304)],
 )
 def test_responsive_modes_resize_the_rail_and_apply_result_column_policies(
     tk_window, width, mode, rail_width
@@ -1226,7 +1226,49 @@ def test_left_workflow_is_ordered_and_statistics_keep_complete_values(tk_window)
     ]
     assert rows == sorted(rows)
     assert len(set(rows)) == len(rows)
-    assert int(app.workflow_rail.cget("width")) <= 280
+    assert app.RAIL_WIDTHS == {"compact": 64, "standard": 288, "spacious": 304}
+    assert int(app.workflow_rail.cget("width")) == 288
+
+
+@pytest.mark.parametrize("scaling", [1.0, 1.5, 2.0])
+def test_workflow_actions_and_tools_use_full_width_comfortable_layout(
+    tk_window, scaling
+):
+    previous_scaling = float(tk_window.tk.call("tk", "scaling"))
+    try:
+        tk_window.tk.call("tk", "scaling", scaling)
+        app = BatchRenameApp(
+            tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
+        )
+        tk_window.deiconify()
+        tk_window.update()
+
+        assert int(app.workflow_rail.cget("width")) == 288
+        action_heights = {
+            button.winfo_reqheight()
+            for button in (
+                app.directory_select_button,
+                app.search_button,
+                app.preview_button,
+                app.execute_button,
+            )
+        }
+        assert len(action_heights) == 1
+        assert action_heights.pop() >= 30
+        assert app.tools_footer_label.cget("text") == "工具"
+        assert app.regex_templates_button.grid_info()["column"] == 0
+        assert app.settings_tool_button.grid_info()["column"] == 0
+        assert app.regex_templates_button.grid_info()["columnspan"] == 2
+        assert app.settings_tool_button.grid_info()["columnspan"] == 2
+        assert (
+            app.regex_templates_button.grid_info()["row"]
+            < app.settings_tool_button.grid_info()["row"]
+        )
+        expected_width = app.workflow_rail.winfo_width() - 24
+        assert app.regex_templates_button.winfo_width() >= expected_width
+        assert app.settings_tool_button.winfo_width() >= expected_width
+    finally:
+        tk_window.tk.call("tk", "scaling", previous_scaling)
 
 
 @pytest.mark.parametrize("scaling", [1.0, 1.5, 2.0])

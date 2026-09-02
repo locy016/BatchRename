@@ -1104,7 +1104,7 @@ class BatchRenameApp:
 
     POLL_INTERVAL_MS = 80
     RESPONSIVE_DELAY_MS = 120
-    RAIL_WIDTHS = {"compact": 64, "standard": 270, "spacious": 300}
+    RAIL_WIDTHS = {"compact": 64, "standard": 288, "spacious": 304}
     COLORS = theme_palette("light")
 
     def __init__(
@@ -1253,8 +1253,8 @@ class BatchRenameApp:
             background=colors["accent"],
             foreground="#FFFFFF",
             borderwidth=0,
-            padding=(8, 2),
-            font=("Microsoft YaHei UI", 9, "bold"),
+            padding=(10, 7),
+            font=("Microsoft YaHei UI", 9),
             focuscolor=colors["accent_hover"],
         )
         style.map(
@@ -1267,11 +1267,42 @@ class BatchRenameApp:
             background="#E1E9F0",
             foreground=colors["navy"],
             borderwidth=0,
-            padding=(8, 2),
-            font=("Microsoft YaHei UI", 8),
+            padding=(10, 7),
+            font=("Microsoft YaHei UI", 9),
             focuscolor="#C7D8E5",
         )
         style.map("WorkflowSecondary.TButton", background=[("active", "#D2E0E9")])
+        style.configure(
+            "WorkflowFinal.TButton",
+            background=colors["navy"],
+            foreground=colors["card"],
+            borderwidth=0,
+            padding=(10, 7),
+            font=("Microsoft YaHei UI", 9),
+            focuscolor=colors["selection"],
+        )
+        style.map(
+            "WorkflowFinal.TButton",
+            background=[("active", colors["navy_soft"]), ("disabled", colors["surface_alt"])],
+            foreground=[("disabled", colors["disabled"])],
+        )
+        style.configure(
+            "WorkflowTool.TButton",
+            background=colors["sidebar"],
+            foreground=colors["navy_soft"],
+            borderwidth=1,
+            relief="solid",
+            padding=(10, 6),
+            font=("Microsoft YaHei UI", 9),
+            focuscolor=colors["selection"],
+        )
+        style.configure(
+            "WorkflowFeedback.TLabel",
+            background=colors["surface_alt"],
+            foreground=colors["muted"],
+            padding=(8, 4),
+            font=("Microsoft YaHei UI", 8),
+        )
         style.configure("Header.TFrame", background=colors["navy"])
         style.configure("Card.TFrame", background=colors["card"], relief="flat")
         style.configure(
@@ -1597,6 +1628,32 @@ class BatchRenameApp:
             "WorkflowAccent.TButton",
             background=[("active", colors["accent_hover"]), ("disabled", colors["disabled"])],
         )
+        style.configure(
+            "WorkflowFinal.TButton",
+            background=colors["navy"],
+            foreground=colors["card"],
+        )
+        style.map(
+            "WorkflowFinal.TButton",
+            background=[("active", colors["navy_soft"]), ("disabled", colors["surface_alt"])],
+            foreground=[("disabled", colors["disabled"])],
+        )
+        style.configure(
+            "WorkflowTool.TButton",
+            background=colors["sidebar"],
+            foreground=colors["navy_soft"],
+            bordercolor=colors["border"],
+        )
+        style.map(
+            "WorkflowTool.TButton",
+            background=[("active", colors["sidebar_active"]), ("disabled", colors["sidebar"])],
+            foreground=[("active", colors["accent"]), ("disabled", colors["disabled"])],
+        )
+        style.configure(
+            "WorkflowFeedback.TLabel",
+            background=colors["surface_alt"],
+            foreground=colors["muted"],
+        )
         style.configure("Header.TFrame", background=colors["surface_alt"])
         style.configure("HeaderTitle.TLabel", background=colors["surface_alt"], foreground=colors["text"])
         style.configure("HeaderSubtitle.TLabel", background=colors["surface_alt"], foreground=colors["muted"])
@@ -1830,7 +1887,7 @@ class BatchRenameApp:
         body_height = max(1, self.body_frame.winfo_height())
         body_width = max(1, self.body_frame.winfo_width())
         x = self.RAIL_WIDTHS["compact"] + 7
-        width = min(300, max(1, body_width - x))
+        width = min(320, max(1, body_width - x))
         self.workflow_rail.configure(width=width)
         self.workflow_rail.place(x=x, y=0, width=width, height=body_height)
         self.workflow_rail.lift()
@@ -1981,7 +2038,12 @@ class BatchRenameApp:
         self.result_tree.tag_configure("unchanged", foreground=colors["warning"])
 
     def _build_workflow_rail(self, parent: ttk.Frame) -> None:
-        rail = ttk.Frame(parent, style="Workflow.TFrame", width=270, padding=(12, 6))
+        rail = ttk.Frame(
+            parent,
+            style="Workflow.TFrame",
+            width=self.RAIL_WIDTHS["standard"],
+            padding=(12, 5),
+        )
         rail.grid(row=0, column=0, sticky="ns", padx=(0, 7))
         rail.grid_propagate(False)
         rail.columnconfigure(0, weight=1)
@@ -1990,7 +2052,7 @@ class BatchRenameApp:
         self.workflow_rail = rail
 
         ttk.Label(rail, text="重命名流程", style="WorkflowTitle.TLabel").grid(
-            row=0, column=0, columnspan=2, sticky="w", pady=(0, 4)
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 5)
         )
         self.root_directory_label = ttk.Label(
             rail, text="1  选择目录", style="WorkflowTitle.TLabel"
@@ -2003,7 +2065,7 @@ class BatchRenameApp:
         self.directory_select_button = ttk.Button(
             rail, text="选择目录…", style="WorkflowSecondary.TButton", command=self._choose_directory
         )
-        self.directory_select_button.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 5))
+        self.directory_select_button.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 8))
 
         ttk.Label(rail, text="2  查找规则", style="WorkflowTitle.TLabel").grid(
             row=4, column=0, columnspan=2, sticky="w"
@@ -2035,7 +2097,7 @@ class BatchRenameApp:
         self.search_button = ttk.Button(
             rail, text="扫描", style="WorkflowSecondary.TButton", command=self._start_search
         )
-        self.search_button.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(0, 5))
+        self.search_button.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(0, 8))
 
         self.replacement_field_label = ttk.Label(
             rail, text="3  替换为", style="WorkflowTitle.TLabel"
@@ -2048,11 +2110,11 @@ class BatchRenameApp:
         self.preview_button = ttk.Button(
             rail, text="结果预览", style="WorkflowAccent.TButton", command=self._start_preview
         )
-        self.preview_button.grid(row=11, column=0, columnspan=2, sticky="ew", pady=(0, 3))
+        self.preview_button.grid(row=11, column=0, columnspan=2, sticky="ew", pady=(0, 5))
         self.execute_button = ttk.Button(
             rail,
             text="确认执行",
-            style="WorkflowSecondary.TButton",
+            style="WorkflowFinal.TButton",
             command=self._confirm_execute,
             state="disabled",
         )
@@ -2060,20 +2122,50 @@ class BatchRenameApp:
         self.rule_feedback_label = ttk.Label(
             rail,
             textvariable=self.rule_feedback_var,
-            style="WorkflowHint.TLabel",
-            wraplength=238,
+            style="WorkflowFeedback.TLabel",
+            wraplength=252,
             justify="left",
         )
-        self.rule_feedback_label.grid(row=13, column=0, columnspan=2, sticky="ew", pady=(2, 0))
+        self.rule_feedback_label.grid(row=13, column=0, columnspan=2, sticky="ew", pady=(5, 0))
+
+        self.tools_footer_label = ttk.Label(
+            rail,
+            text="工具",
+            style="WorkflowTitle.TLabel",
+        )
+        self.tools_footer_label.grid(
+            row=15,
+            column=0,
+            columnspan=2,
+            sticky="w",
+            pady=(5, 5),
+        )
 
         self.regex_templates_button = ttk.Button(
-            rail, text="⌘  正则模板", style="WorkflowSecondary.TButton", command=self._show_regex_examples
+            rail,
+            text="⌘  正则模板",
+            style="WorkflowTool.TButton",
+            command=self._show_regex_examples,
         )
-        self.regex_templates_button.grid(row=15, column=0, sticky="ew", padx=(0, 3), pady=(8, 0))
+        self.regex_templates_button.grid(
+            row=16,
+            column=0,
+            columnspan=2,
+            sticky="ew",
+            pady=(0, 6),
+        )
         self.settings_tool_button = ttk.Button(
-            rail, text="⚙  设置", style="WorkflowSecondary.TButton", command=self._show_settings
+            rail,
+            text="⚙  设置",
+            style="WorkflowTool.TButton",
+            command=self._show_settings,
         )
-        self.settings_tool_button.grid(row=15, column=1, sticky="ew", padx=(3, 0), pady=(8, 0))
+        self.settings_tool_button.grid(
+            row=17,
+            column=0,
+            columnspan=2,
+            sticky="ew",
+        )
 
         # 兼容旧的内部名称；界面中仍只有一组流程按钮。
         self.search_scan_button = self.search_button
@@ -2095,6 +2187,8 @@ class BatchRenameApp:
         self._tooltip(self.search_button, "只查找名称匹配项，不计算新名称，也不会修改磁盘。")
         self._tooltip(self.preview_button, "根据刚才的匹配快照计算新名称和安全状态，不会重新扫描目录。")
         self._tooltip(self.execute_button, "只执行预览中状态为“可修改”的项目，并在执行前再次确认。")
+        self._tooltip(self.regex_templates_button, "打开常用正则模板工作面板。")
+        self._tooltip(self.settings_tool_button, "打开扫描范围和名称保护设置。")
 
     def _build_result_workspace(self, parent: ttk.Frame) -> None:
         workspace = ttk.Frame(parent, style="App.TFrame")
