@@ -32,6 +32,7 @@ from batch_rename.models import (
     RenameCandidate,
     ScanResult,
 )
+from batch_rename.preferences import AppPreferences, save_preferences
 
 
 @pytest.fixture(scope="session")
@@ -77,6 +78,23 @@ def menu_labels(menu):
 def test_main_exposes_callable_entrypoint():
     assert callable(main.main)
     assert BatchRenameApp.__name__ == "BatchRenameApp"
+
+
+def test_app_loads_requested_appearance_without_touching_real_user_settings(
+    tk_window, tmp_path
+):
+    preferences_path = tmp_path / "settings.json"
+    save_preferences(AppPreferences(appearance="dark"), preferences_path)
+
+    app = BatchRenameApp(
+        tk_window,
+        preferences_path=preferences_path,
+        system_light_provider=lambda: True,
+    )
+
+    assert app.requested_appearance == "dark"
+    assert app.resolved_appearance == "dark"
+    assert app.preferences_path == preferences_path
 
 
 @pytest.mark.parametrize(

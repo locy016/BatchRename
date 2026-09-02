@@ -35,6 +35,13 @@ from .models import (
     RenameCandidate,
     ScanResult,
 )
+from .preferences import (
+    AppPreferences,
+    default_preferences_path,
+    load_preferences,
+    resolve_appearance,
+    system_prefers_light,
+)
 
 
 MIN_WINDOW_WIDTH = 1120
@@ -998,8 +1005,22 @@ class BatchRenameApp:
         root: tk.Tk,
         *,
         work_area_provider: Callable[[tk.Misc], tuple[int, int, int, int]] = _pointer_monitor_work_area,
+        preferences_path: Path | None = None,
+        system_light_provider: Callable[[], bool] = system_prefers_light,
     ) -> None:
         self.root = root
+        self.preferences_path = (
+            default_preferences_path()
+            if preferences_path is None
+            else Path(preferences_path)
+        )
+        self.system_light_provider = system_light_provider
+        preferences = load_preferences(self.preferences_path)
+        self.requested_appearance = preferences.appearance
+        self.resolved_appearance = resolve_appearance(
+            self.requested_appearance,
+            self.system_light_provider,
+        )
         self.root.title("批量重命名工具")
         self.initial_window_layout = calculate_window_layout(work_area_provider(root))
         self.root.geometry(self.initial_window_layout.geometry)
