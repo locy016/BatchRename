@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="360" viewBox="0 0 1440 360" role="img" aria-labelledby="title description">
-  <title id="title">批量重命名六步操作流程</title>
-  <desc id="description">从选择目录、设置查找规则、扫描匹配、填写替换内容、结果预览到确认执行的安全操作流程。</desc>
+  <title id="title">批量重命名六步可追溯操作流程</title>
+  <desc id="description">从选择目录、设置规则、扫描预览到确认执行并写入日志；需要恢复时先进行整批安全检查。</desc>
   <defs>
     <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#f3f6fa"/>
@@ -24,7 +24,7 @@
 
   <rect width="1440" height="360" rx="28" fill="url(#background)"/>
   <text x="50" y="37" class="eyebrow">安全重命名工作流</text>
-  <text x="50" y="67" class="title">先找到，再预览，确认无误后执行</text>
+  <text x="50" y="67" class="title">先找到，再预览；执行有记录，撤回先检查</text>
 
   <g fill="none" stroke="#7b94a8" stroke-width="3" marker-end="url(#arrow)">
     <path d="M 240 168 H 270"/>
@@ -73,8 +73,8 @@
     <rect x="1200" y="88" width="190" height="168" rx="18" fill="#17324d" stroke="#17324d"/>
     <circle cx="1228" cy="116" r="18" fill="#16a3a5"/>
     <text x="1228" y="117" class="number">6</text>
-    <text x="1220" y="160" class="step-title" fill="#ffffff" style="fill:#ffffff">确认执行</text>
-    <text x="1220" y="193" class="step-copy" fill="#d7e5f0" style="fill:#d7e5f0">查看汇总并二次确认</text>
+    <text x="1220" y="160" class="step-title" fill="#ffffff" style="fill:#ffffff">执行并记录</text>
+    <text x="1220" y="193" class="step-copy" fill="#d7e5f0" style="fill:#d7e5f0">先建立操作日志</text>
     <text x="1220" y="219" class="step-copy" fill="#d7e5f0" style="fill:#d7e5f0">确认后才写入磁盘</text>
   </g>
 
@@ -86,6 +86,6 @@
   <g transform="translate(735 294)">
     <rect width="655" height="42" rx="12" fill="#ffffff" stroke="#cbd8e2"/>
     <circle cx="24" cy="21" r="8" fill="#177245"/>
-    <text x="43" y="27" class="footer">只有“可修改”项目会在最终确认后执行</text>
+    <text x="43" y="27" class="footer">操作日志 → 整批安全检查 → 确认撤回原名称</text>
   </g>
 </svg>

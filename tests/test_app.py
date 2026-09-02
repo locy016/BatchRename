@@ -1042,11 +1042,11 @@ def test_about_describes_current_beta_roadmap_safety_and_contact(tk_window):
 
     window = app.dialogs.windows["about"]
     content = app.about_content_var.get()
-    assert "1.1.0-beta.1" in content
+    assert "1.1.0-beta.2" in content
     assert "两阶段" in content
     assert "正则模板" in content
-    assert "撤回管理" in content and "开发中" in content
-    assert "操作日志" in content and "开发中" in content
+    assert "撤回管理" in content and "整批安全检查" in content
+    assert "操作日志" in content and "本地" in content
     assert "目录概况" in content and "匹配统计" in content
     assert "跟随系统" in content and "深色" in content
     assert "快速开发期" in content
@@ -1068,7 +1068,26 @@ def test_help_explains_inventory_statistics_work_panels_and_appearance(tk_window
     assert "结果表下方" in content and "名称未变化" in content
     assert "40%" in content and "60%" in content
     assert "视图 → 外观" in content
+    assert "功能 → 操作日志" in content
+    assert "功能 → 撤回管理" in content
+    assert "整批" in content and "安全检查" in content
     assert "跟随系统" in content and "浅色" in content and "深色" in content
+
+
+def test_floating_panel_shadow_updates_with_runtime_theme(tk_window):
+    app = BatchRenameApp(
+        tk_window,
+        preferences_path=Path("unused-settings.json"),
+        system_light_provider=lambda: True,
+    )
+
+    app.set_appearance("light", persist=False)
+    assert app.templates_panel_shadow.cget("background") == theme_palette("light")["panel_shadow"]
+
+    app.set_appearance("dark", persist=False)
+
+    assert app.templates_panel_shadow.cget("background") == theme_palette("dark")["panel_shadow"]
+    assert app.settings_panel_shadow.cget("background") == theme_palette("dark")["panel_shadow"]
 
 
 def test_open_native_text_dialogs_follow_runtime_appearance_switch(tk_window):

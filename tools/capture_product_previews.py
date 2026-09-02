@@ -15,6 +15,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from batch_rename.app import BatchRenameApp
+from batch_rename.history import (
+    OperationItem,
+    OperationLog,
+    OperationStatus,
+    OperationStore,
+    UndoStatus,
+)
 from batch_rename.models import (
     CandidateStatus,
     ItemKind,
@@ -94,6 +101,46 @@ def capture(root: tk.Tk, app: BatchRenameApp, path: Path) -> None:
     ImageGrab.grab(bbox=(x, y, x + width, y + height), all_screens=True).save(path)
 
 
+def capture_window(window: tk.Misc, path: Path) -> None:
+    window.update_idletasks()
+    window.update()
+    x = window.winfo_rootx()
+    y = window.winfo_rooty()
+    width = window.winfo_width()
+    height = window.winfo_height()
+    ImageGrab.grab(bbox=(x, y, x + width, y + height), all_screens=True).save(path)
+
+
+def add_demo_operation(store: OperationStore) -> None:
+    store.create(
+        OperationLog(
+            identifier="20260902-130800-demo",
+            created_at="2026-09-02T13:08:00+08:00",
+            updated_at="2026-09-02T13:08:06+08:00",
+            root=DEMO_ROOT,
+            search="项目",
+            replacement="客户",
+            status=OperationStatus.COMPLETED,
+            items=[
+                OperationItem(
+                    source=item.source,
+                    target=item.target,
+                    kind=item.kind,
+                    outcome=("成功" if item.status is CandidateStatus.READY else "跳过"),
+                    detail=item.detail,
+                    execution_index=index if item.status is CandidateStatus.READY else None,
+                    undo_status=(
+                        UndoStatus.PENDING
+                        if item.status is CandidateStatus.READY
+                        else UndoStatus.NOT_APPLICABLE
+                    ),
+                )
+                for index, item in enumerate(DEMO_ITEMS, start=1)
+            ],
+        )
+    )
+
+
 def main() -> None:
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
@@ -101,12 +148,15 @@ def main() -> None:
         pass
     IMAGE_DIR.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="batch-rename-preview-") as temp_dir:
+        operation_store = OperationStore(Path(temp_dir) / "operations")
+        add_demo_operation(operation_store)
         root = tk.Tk()
         app = BatchRenameApp(
             root,
             work_area_provider=lambda _root: (0, 0, 1920, 1080),
             preferences_path=Path(temp_dir) / "settings.json",
             system_light_provider=lambda: True,
+            operation_store=operation_store,
         )
         app.set_appearance("light", persist=False)
         populate(app)
@@ -128,6 +178,22 @@ def main() -> None:
         app.workflow_nav_button.invoke()
         time.sleep(0.2)
         capture(root, app, IMAGE_DIR / "batch-rename-compact.png")
+
+        app._close_workflow_drawer()
+        app.set_appearance("light", persist=False)
+        app._show_history_center("logs")
+        history_window = app.dialogs.windows["history-center"]
+        history_window.geometry("980x700+100+80")
+        history_window.update()
+        history_rows = app.history_tree.get_children()
+        if history_rows:
+            app.history_tree.selection_set(history_rows[0])
+            app._show_selected_history_operation()
+        time.sleep(0.2)
+        capture_window(
+            history_window,
+            IMAGE_DIR / "batch-rename-operation-history.png",
+        )
         root.destroy()
 
 

@@ -8,6 +8,7 @@ README_PATH = PROJECT_ROOT / "README.md"
 REQUIRED_VISUALS = {
     "docs/images/batch-rename-compact.png",
     "docs/images/batch-rename-main.png",
+    "docs/images/batch-rename-operation-history.png",
     "docs/images/batch-rename-regex-templates.png",
     "docs/images/batch-rename-workflow.svg",
 }
@@ -59,3 +60,17 @@ def test_readme_describes_the_modern_workspace_inventory_and_appearance_modes():
     assert "视图 → 外观" in markdown
     assert all(mode in markdown for mode in ("跟随系统", "浅色", "深色"))
     assert "正则模板" in markdown and "40%" in markdown and "60%" in markdown
+
+
+def test_readme_describes_released_operation_history_and_safe_undo_without_stale_placeholders():
+    markdown = README_PATH.read_text(encoding="utf-8")
+
+    assert "1.1.0-beta.2" in markdown
+    assert "%LOCALAPPDATA%\\BatchRename\\operations" in markdown
+    assert "操作日志" in markdown
+    assert "撤回管理" in markdown
+    assert "整批安全检查" in markdown
+    assert "batch-rename-operation-history.png" in markdown
+    assert "撤回管理（开发中）" not in markdown
+    assert "操作日志（开发中）" not in markdown
+    assert "尚未提供自动撤回" not in markdown
