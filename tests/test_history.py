@@ -7,10 +7,20 @@ from batch_rename.history import (
     OperationStatus,
     OperationStore,
     UndoStatus,
+    append_execution_record,
+    create_operation_log,
     default_operation_directory,
     filter_operations,
+    finalize_operation,
 )
-from batch_rename.models import ItemKind
+from batch_rename.models import (
+    CandidateStatus,
+    ExecutionRecord,
+    ItemKind,
+    RenameCandidate,
+    ScanOptions,
+    ScanResult,
+)
 
 
 def operation(
@@ -112,3 +122,65 @@ def test_default_operation_directory_uses_local_app_data():
     assert default_operation_directory(
         {"LOCALAPPDATA": "C:/Users/test/AppData/Local"}
     ) == Path("C:/Users/test/AppData/Local/BatchRename/operations")
+
+
+def test_execution_journal_records_rule_progress_and_final_state(tmp_path):
+    source = tmp_path / "项目.txt"
+    target = tmp_path / "归档.txt"
+    scan = ScanResult(
+        root=tmp_path,
+        candidates=[
+            RenameCandidate(
+                source=source,
+                target=target,
+                kind=ItemKind.FILE,
+                status=CandidateStatus.READY,
+            )
+        ],
+    )
+    options = ScanOptions(
+        root=tmp_path,
+        search="项目",
+        replacement="归档",
+        max_depth=2,
+        include_files=True,
+        include_dirs=False,
+    )
+
+    journal = create_operation_log(
+        scan,
+        options,
+        identifier="run-001",
+        created_at="2026-09-02T11:00:00+08:00",
+    )
+    append_execution_record(
+        journal,
+        ExecutionRecord(source, target, ItemKind.FILE, "成功", "重命名完成"),
+    )
+    finalize_operation(journal)
+
+    assert journal.identifier == "run-001"
+    assert journal.search == "项目"
+    assert journal.replacement == "归档"
+    assert journal.status is OperationStatus.COMPLETED
+    assert journal.items[0].outcome == "成功"
+    assert journal.items[0].undo_status is UndoStatus.PENDING
+
+
+def test_execution_journal_finalizes_failures_as_partial(tmp_path):
+    scan = ScanResult(root=tmp_path)
+    options = ScanOptions(root=tmp_path, search="旧", replacement="新")
+    journal = create_operation_log(scan, options, identifier="run-002")
+    journal.items.append(
+        OperationItem(
+            source=tmp_path / "旧.txt",
+            target=tmp_path / "新.txt",
+            kind=ItemKind.FILE,
+            outcome="失败",
+            detail="文件被占用",
+        )
+    )
+
+    finalize_operation(journal)
+
+    assert journal.status is OperationStatus.PARTIAL

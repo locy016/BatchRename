@@ -6,6 +6,7 @@ from tkinter import ttk
 
 import main
 import pytest
+import batch_rename.app as app_module
 from batch_rename.app import (
     AutoHideScrollbar,
     BatchRenameApp,
@@ -27,6 +28,11 @@ from batch_rename.app import (
     theme_palette,
 )
 from batch_rename.examples import REGEX_EXAMPLES
+from batch_rename.history import (
+    OperationStatus,
+    OperationStore,
+    create_operation_log,
+)
 from batch_rename.models import (
     CandidateStatus,
     ExecutionResult,
@@ -34,6 +40,7 @@ from batch_rename.models import (
     MatchedItem,
     MatchResult,
     RenameCandidate,
+    ScanOptions,
     ScanResult,
 )
 from batch_rename.preferences import AppPreferences, load_preferences, save_preferences
@@ -1200,6 +1207,90 @@ def test_type_icon_selects_the_row_without_opening_details(tk_window):
 
     assert app.result_tree.selection() == (app.result_tree.get_children()[0],)
     assert "result-item-details" not in app.dialogs.windows
+
+
+def test_execution_does_not_start_when_initial_journal_cannot_be_saved(
+    tk_window, tmp_path, monkeypatch
+):
+    class RejectingStore:
+        def create(self, _operation):
+            raise OSError("日志目录不可写")
+
+    started = []
+
+    class UnexpectedThread:
+        def __init__(self, *args, **kwargs):
+            started.append((args, kwargs))
+
+        def start(self):
+            started.append("started")
+
+    source = tmp_path / "旧.txt"
+    source.write_text("content", encoding="utf-8")
+    item = RenameCandidate(
+        source=source,
+        target=tmp_path / "新.txt",
+        kind=ItemKind.FILE,
+        status=CandidateStatus.READY,
+    )
+    app = BatchRenameApp(tk_window, operation_store=RejectingStore())
+    app.search_var.set("旧")
+    app.replacement_var.set("新")
+    app._last_scan = ScanResult(root=tmp_path, candidates=[item])
+    app._last_matches = MatchResult(
+        root=tmp_path,
+        search="旧",
+        use_regex=False,
+        items=[MatchedItem(source=source, kind=ItemKind.FILE)],
+    )
+    monkeypatch.setattr(app_module.threading, "Thread", UnexpectedThread)
+    monkeypatch.setattr(app_module.messagebox, "askyesno", lambda *a, **k: True)
+    errors = []
+    monkeypatch.setattr(
+        app_module.messagebox,
+        "showerror",
+        lambda title, detail, **kwargs: errors.append((title, detail)),
+    )
+
+    app._confirm_execute()
+
+    assert started == []
+    assert source.exists()
+    assert app._busy is False
+    assert errors and "日志目录不可写" in errors[0][1]
+    assert "日志" in app.status_var.get()
+
+
+def test_execute_worker_persists_each_record_and_final_operation_state(
+    tk_window, tmp_path
+):
+    store = OperationStore(tmp_path / "operations")
+    source = tmp_path / "旧.txt"
+    target = tmp_path / "新.txt"
+    source.write_text("content", encoding="utf-8")
+    item = RenameCandidate(
+        source=source,
+        target=target,
+        kind=ItemKind.FILE,
+        status=CandidateStatus.READY,
+    )
+    scan = ScanResult(root=tmp_path, candidates=[item])
+    options = ScanOptions(root=tmp_path, search="旧", replacement="新")
+    journal = create_operation_log(scan, options, identifier="worker-001")
+    store.create(journal)
+    app = BatchRenameApp(tk_window, operation_store=store)
+
+    app._execute_worker([item], journal)
+
+    messages = []
+    while not app._messages.empty():
+        messages.append(app._messages.get_nowait())
+    persisted = store.load("worker-001")
+    assert target.exists() and not source.exists()
+    assert persisted.status is OperationStatus.COMPLETED
+    assert persisted.success_count == 1
+    assert [message[0] for message in messages] == ["progress", "execute_done"]
+    assert messages[-1][2].identifier == "worker-001"
 
 
 def test_default_layout_uses_content_sized_minimum_and_expands_the_result_area(tk_window):

@@ -12,7 +12,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Iterable, Mapping
 
-from .models import ItemKind
+from .models import ExecutionRecord, ItemKind, ScanOptions, ScanResult
 
 
 SCHEMA_VERSION = 1
@@ -179,6 +179,84 @@ def default_operation_directory(
     local_app_data = values.get("LOCALAPPDATA")
     base = Path(local_app_data) if local_app_data else Path.home() / "AppData" / "Local"
     return base / "BatchRename" / "operations"
+
+
+def create_operation_log(
+    scan: ScanResult,
+    options: ScanOptions,
+    *,
+    identifier: str | None = None,
+    created_at: str | None = None,
+) -> OperationLog:
+    """根据最终预览建立尚未执行的完整操作档案。"""
+
+    timestamp = created_at or _now_iso()
+    return OperationLog(
+        identifier=identifier or f"{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:8]}",
+        created_at=timestamp,
+        updated_at=timestamp,
+        root=scan.root,
+        search=options.search,
+        replacement=options.replacement,
+        use_regex=options.use_regex,
+        max_depth=options.max_depth,
+        include_files=options.include_files,
+        include_dirs=options.include_dirs,
+        rename_extension=options.rename_extension,
+        status=OperationStatus.PREPARING,
+        items=[
+            OperationItem(
+                source=candidate.source,
+                target=candidate.target,
+                kind=candidate.kind,
+            )
+            for candidate in scan.candidates
+        ],
+    )
+
+
+def append_execution_record(
+    operation: OperationLog, record: ExecutionRecord
+) -> OperationItem:
+    """把执行器返回的一项结果写回对应档案项目。"""
+
+    item = next(
+        (
+            candidate
+            for candidate in operation.items
+            if candidate.source == record.source
+            and candidate.target == record.target
+            and candidate.kind is record.kind
+        ),
+        None,
+    )
+    if item is None:
+        item = OperationItem(
+            source=record.source,
+            target=record.target,
+            kind=record.kind,
+        )
+        operation.items.append(item)
+    item.outcome = record.outcome
+    item.detail = record.detail
+    item.undo_status = (
+        UndoStatus.PENDING
+        if record.outcome == "成功"
+        else UndoStatus.NOT_APPLICABLE
+    )
+    item.undo_detail = ""
+    operation.status = OperationStatus.RUNNING
+    return item
+
+
+def finalize_operation(operation: OperationLog) -> None:
+    """根据完整执行结果确定操作档案的最终状态。"""
+
+    operation.status = (
+        OperationStatus.PARTIAL
+        if operation.failed_count
+        else OperationStatus.COMPLETED
+    )
 
 
 class OperationStore:

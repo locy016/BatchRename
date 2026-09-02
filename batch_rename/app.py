@@ -24,6 +24,14 @@ from .core import (
     search_matches,
 )
 from .examples import REGEX_EXAMPLES, RegexExample
+from .history import (
+    OperationLog,
+    OperationStatus,
+    OperationStore,
+    append_execution_record,
+    create_operation_log,
+    finalize_operation,
+)
 from .models import (
     CandidateStatus,
     ExecutionRecord,
@@ -33,6 +41,7 @@ from .models import (
     MatchOptions,
     MatchResult,
     RenameCandidate,
+    ScanOptions,
     ScanResult,
 )
 from .preferences import (
@@ -1162,6 +1171,7 @@ class BatchRenameApp:
         work_area_provider: Callable[[tk.Misc], tuple[int, int, int, int]] = _pointer_monitor_work_area,
         preferences_path: Path | None = None,
         system_light_provider: Callable[[], bool] = system_prefers_light,
+        operation_store: OperationStore | None = None,
     ) -> None:
         self.root = root
         self.preferences_path = (
@@ -1170,6 +1180,7 @@ class BatchRenameApp:
             else Path(preferences_path)
         )
         self.system_light_provider = system_light_provider
+        self.operation_store = operation_store or OperationStore()
         preferences = load_preferences(self.preferences_path)
         self.requested_appearance = preferences.appearance
         self.resolved_appearance = resolve_appearance(
@@ -1228,6 +1239,7 @@ class BatchRenameApp:
         self._last_matches: MatchResult | None = None
         self._last_scan: ScanResult | None = None
         self._last_execution: ExecutionResult | None = None
+        self._last_operation: OperationLog | None = None
         self._inventory_scanning = False
         self._result_row_details: dict[str, dict[str, str]] = {}
         self._responsive_after_id: str | None = None
@@ -3800,7 +3812,7 @@ class BatchRenameApp:
             f"其中：文件夹 {directory_ready} 项，文件 {file_ready} 项\n"
             f"名称未变化：{summary['unchanged_total']} 项\n"
             f"因冲突或规则问题阻止：{summary['blocked_total']} 项\n\n"
-            "执行后不能在本工具中自动撤销。是否继续？",
+            "执行过程会写入本地操作日志，可在安全检查通过后撤回。是否继续？",
             icon="warning",
             parent=self.root,
         )
@@ -3808,24 +3820,108 @@ class BatchRenameApp:
             self.status_var.set("已取消执行，磁盘上的名称没有变化。")
             return
         candidates = list(self._last_scan.candidates)
+        max_depth = (
+            None
+            if self.depth_mode_var.get() == "all"
+            else int(self.depth_var.get())
+        )
+        operation = create_operation_log(
+            self._last_scan,
+            ScanOptions(
+                root=self._last_scan.root,
+                search=(
+                    self._last_matches.search
+                    if self._last_matches is not None
+                    else self.search_var.get()
+                ),
+                replacement=self.replacement_var.get(),
+                use_regex=(
+                    self._last_matches.use_regex
+                    if self._last_matches is not None
+                    else self.regex_var.get()
+                ),
+                max_depth=max_depth,
+                include_files=self.include_files_var.get(),
+                include_dirs=self.include_dirs_var.get(),
+                rename_extension=self.rename_extension_var.get(),
+            ),
+        )
+        try:
+            self.operation_store.create(operation)
+        except (OSError, ValueError, TypeError) as exc:
+            self.status_var.set(f"无法建立操作日志：{exc}")
+            messagebox.showerror(
+                "无法建立操作日志",
+                "为保证本次修改可以追溯，程序没有开始重命名。\n\n"
+                f"{exc}",
+                parent=self.root,
+            )
+            return
+        self._last_operation = operation
         self._set_busy(True)
         self.progress.configure(mode="determinate", maximum=max(len(candidates), 1), value=0)
         self.progress_text_var.set(f"准备处理 0/{len(candidates)}")
         self.status_var.set("正在执行重命名，请勿关闭程序或移动正在处理的项目。")
-        threading.Thread(target=self._execute_worker, args=(candidates,), daemon=True).start()
+        threading.Thread(
+            target=self._execute_worker,
+            args=(candidates, operation),
+            daemon=True,
+        ).start()
 
-    def _execute_worker(self, candidates: list[RenameCandidate]) -> None:
+    def _execute_worker(
+        self,
+        candidates: list[RenameCandidate],
+        operation: OperationLog,
+    ) -> None:
+        def record_progress(
+            current: int, total: int, record: ExecutionRecord
+        ) -> None:
+            append_execution_record(operation, record)
+            self.operation_store.save(operation)
+            self._messages.put(("progress", current, total, record))
+
         try:
+            operation.status = OperationStatus.RUNNING
+            self.operation_store.save(operation)
             result = execute(
                 candidates,
-                progress=lambda current, total, record: self._messages.put(
-                    ("progress", current, total, record)
-                ),
+                progress=record_progress,
             )
         except Exception as exc:
-            self._messages.put(("error", "执行失败", str(exc)))
+            operation.status = OperationStatus.INTERRUPTED
+            operation.error = f"执行或日志写入中断：{exc}"
+            try:
+                self.operation_store.save(operation)
+            except Exception:
+                pass
+            partial_result = ExecutionResult(
+                records=[
+                    ExecutionRecord(
+                        item.source,
+                        item.target,
+                        item.kind,
+                        item.outcome,
+                        item.detail,
+                    )
+                    for item in operation.items
+                    if item.outcome != "待执行"
+                ]
+            )
+            self._messages.put(
+                ("execute_error", str(exc), partial_result, operation)
+            )
         else:
-            self._messages.put(("execute_done", result))
+            finalize_operation(operation)
+            try:
+                self.operation_store.save(operation)
+            except Exception as exc:
+                operation.status = OperationStatus.INTERRUPTED
+                operation.error = f"重命名已结束，但最终日志保存失败：{exc}"
+                self._messages.put(
+                    ("execute_error", str(exc), result, operation)
+                )
+                return
+            self._messages.put(("execute_done", result, operation))
 
     def _handle_progress(self, current: int, total: int, record: ExecutionRecord) -> None:
         self.progress.configure(maximum=max(total, 1), value=current)
@@ -3833,9 +3929,15 @@ class BatchRenameApp:
             f"{current}/{total}  {record.outcome}：{record.source.name}"
         )
 
-    def _handle_execute_done(self, result: ExecutionResult) -> None:
+    def _handle_execute_done(
+        self,
+        result: ExecutionResult,
+        operation: OperationLog | None = None,
+    ) -> None:
         self._set_busy(False)
         self._last_execution = result
+        if operation is not None:
+            self._last_operation = operation
         self._last_matches = None
         self._last_scan = None
         self._set_directory_inventory(None)
@@ -3866,7 +3968,20 @@ class BatchRenameApp:
                 elif kind == "progress":
                     self._handle_progress(message[1], message[2], message[3])
                 elif kind == "execute_done":
-                    self._handle_execute_done(message[1])
+                    self._handle_execute_done(message[1], message[2])
+                elif kind == "execute_error":
+                    self._set_busy(False)
+                    self._last_execution = message[2]
+                    self._last_operation = message[3]
+                    self.progress_text_var.set("执行中断；已保存能够保留的操作记录")
+                    self.status_var.set(f"执行中断：{message[1]}")
+                    self._sync_command_states()
+                    messagebox.showerror(
+                        "执行中断",
+                        "程序已停止继续处理。请从操作日志核对已经完成的项目。\n\n"
+                        f"{message[1]}",
+                        parent=self.root,
+                    )
                 elif kind == "error":
                     self.progress.stop()
                     self.progress.configure(mode="determinate", value=0)
