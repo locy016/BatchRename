@@ -46,6 +46,7 @@ RESULT_ELASTIC_MINIMUMS = {
     "spacious": {"parent": 160, "old": 220, "new": 250},
 }
 RESULT_ELASTIC_RATIOS = {"parent": 0.26, "old": 0.34, "new": 0.40}
+RESULT_TABLE_BORDER_RESERVE = 4
 RESULT_ICON_COLORS = {
     "neutral": "#284B6B",
     "ready": "#177245",
@@ -559,6 +560,13 @@ class ToolTip:
         self._cancel()
         self.after_id = self.widget.after(500, self._show)
 
+    def set_text(self, text: str) -> None:
+        """更新说明文字；已显示的旧提示会先关闭，避免内容残留。"""
+
+        if text != self.text:
+            self._hide()
+            self.text = text
+
     def _cancel(self) -> None:
         if self.after_id is not None:
             self.widget.after_cancel(self.after_id)
@@ -658,7 +666,7 @@ class TreeColumnTextOverlay:
                 ),
             )
             label._tree_item_id = item_id  # type: ignore[attr-defined]
-            tooltip.text = f"新名称\n{text}"
+            tooltip.set_text(f"新名称\n{text}")
             label.place(x=x + 1, y=y + 1, width=width - 2, height=height - 2)
             label.lift()
             visible_index += 1
@@ -702,7 +710,8 @@ class TreeColumnTextOverlay:
         return "break"
 
     def _hide_from(self, index: int) -> None:
-        for label in self._labels[index:]:
+        for label, tooltip in zip(self._labels[index:], self._tooltips[index:]):
+            tooltip._hide()
             label.place_forget()
 
 
@@ -785,7 +794,7 @@ class TreeCellIconOverlay:
                 canvas._tree_column = column  # type: ignore[attr-defined]
                 canvas._icon_shape = spec.shape  # type: ignore[attr-defined]
                 canvas._icon_actionable = spec.actionable  # type: ignore[attr-defined]
-                tooltip.text = spec.tooltip
+                tooltip.set_text(spec.tooltip)
                 canvas.place(x=x + 1, y=y + 1, width=width - 2, height=height - 2)
                 canvas.tk.call("raise", canvas._w)
                 visible_index += 1
@@ -920,7 +929,10 @@ class TreeCellIconOverlay:
         return "break"
 
     def _hide_from(self, index: int) -> None:
-        for canvas in self._canvases[index:]:
+        for canvas, tooltip in zip(
+            self._canvases[index:], self._tooltips[index:]
+        ):
+            tooltip._hide()
             canvas.place_forget()
 
 
@@ -1454,7 +1466,11 @@ class BatchRenameApp:
             width - self.RAIL_WIDTHS[mode] - 64,
         )
         self._apply_result_column_widths(
-            measured_tree_width if measured_tree_width > 1 else estimated_tree_width
+            (
+                max(1, measured_tree_width - RESULT_TABLE_BORDER_RESERVE)
+                if measured_tree_width > 1
+                else estimated_tree_width
+            )
         )
         self._position_active_tool_panel()
 
@@ -1477,7 +1493,7 @@ class BatchRenameApp:
         self.result_icon_overlay.schedule()
 
     def _on_result_tree_configure(self, event: tk.Event) -> None:
-        width = max(1, int(event.width))
+        width = max(1, int(event.width) - RESULT_TABLE_BORDER_RESERVE)
         previous = self._last_result_width
         if previous is not None and previous[1] == self.current_layout_mode:
             if abs(previous[0] - width) < 4:
@@ -2842,7 +2858,8 @@ class BatchRenameApp:
                 "• 扫描匹配与结果预览分离的两阶段工作流\n"
                 "• 文件夹和文件统一分类排序、冲突拦截与执行确认\n"
                 "• 普通文本、正则表达式、经典正则模板与一键应用\n"
-                "• 多层目录、扩展名保护、处理进度和结果详情\n\n"
+                "• 相对目录、语义状态图标、悬浮提示与单项详情\n"
+                "• 多层目录、扩展名保护、处理进度和执行结果详情\n\n"
                 "正在开发中\n"
                 "• 撤回管理（开发中）\n"
                 "• 操作日志（开发中）\n\n"
@@ -3130,15 +3147,15 @@ class BatchRenameApp:
 1. 在左侧选择根目录。根目录本身不会改名，只处理其内部项目。
 2. 选择普通文本或正则表达式，填写查找内容，点击“扫描”或在查找框按 Enter。扫描只列出名称匹配项，不要求替换内容，也不会修改磁盘。
 3. 填写“替换为”，点击“结果预览”或在替换框按 Enter。预览使用刚才的匹配快照计算新名称和安全状态，不会再次读取目录。
-4. 在统一结果表中按“类型、所在目录、原名称、新名称、状态、说明”检查结果；文件夹排在文件之前，同类项目按名称排列。新名称使用青绿色便于对照，长内容被缩短时，把鼠标停在对应位置可查看完整文字。
+4. 在统一结果表中按“类型、所在目录、原名称、新名称、状态、说明”检查结果；所在目录从当前根目录之后开始显示。类型、状态和说明使用紧凑图标，把鼠标停在图标上可查看完整文字；点击状态或说明图标会打开该项目的完整详情。新名称使用青绿色便于对照，原名称和新名称会随结果区宽度自动伸缩。
 5. 点击“确认执行”，核对汇总并二次确认。执行期间会显示逐项进度，完成后可从“功能 → 结果详情”查看记录。
 6. 层级、文件夹/文件范围和扩展名保护位于左下角“设置”；正则模板与设置互斥显示，再次点击、按 Esc 或点击结果区会收起。
 
 窗口与紧凑导航
 
-程序启动时会跟随鼠标所在显示器选择初始大小，窗口始终保留 960×680 的最小可操作尺寸。标准屏、超宽屏和竖屏使用不同的内容比例；手动缩放时，结果区会优先获得空间。
+程序启动时会跟随鼠标所在显示器选择初始大小，窗口始终保留 1120×720 的完整工作台尺寸。标准屏、超宽屏和竖屏使用不同的内容比例；手动放大时，结果区会优先获得空间。
 
-窗口宽度不足 1120 时，左侧流程会折叠为深色导航条。点击顶部流程图标展开工作流抽屉；底部“.*”和齿轮图标分别打开正则模板与设置。工作流、模板和设置互斥显示，可重复点击、按 Esc 或点击结果区收起。缩放不会清空已经填写的目录、规则、匹配或预览。
+竖屏或窗口内容比例偏窄时，左侧流程会折叠为深色导航条。点击顶部流程图标展开工作流抽屉；底部“.*”和齿轮图标分别打开正则模板与设置。工作流、模板和设置互斥显示，可重复点击、按 Esc 或点击结果区收起。缩放不会清空已经填写的目录、规则、匹配或预览。
 
 普通文本模式
 

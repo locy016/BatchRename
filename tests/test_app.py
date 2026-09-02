@@ -617,6 +617,46 @@ def test_result_icon_overlay_covers_visible_type_status_and_detail_cells(tk_wind
     assert app.result_icon_overlay.visible_icon_data == ()
 
 
+def test_visible_icon_tooltip_closes_before_canvas_is_reused_for_new_row(tk_window):
+    app = BatchRenameApp(tk_window)
+    source = Path("C:/root/旧项目.txt")
+    old_item = RenameCandidate(
+        source=source,
+        target=source.with_name("新项目.txt"),
+        kind=ItemKind.FILE,
+        status=CandidateStatus.CONFLICT,
+        detail="旧说明",
+    )
+    app._fill_tree(app.result_tree, [old_item], root=Path("C:/root"))
+    tk_window.deiconify()
+    tk_window.update()
+    app.result_icon_overlay.refresh()
+    detail_index = next(
+        index
+        for index, canvas in enumerate(app.result_icon_overlay._canvases)
+        if getattr(canvas, "_tree_column", "") == "detail"
+    )
+    tooltip = app.result_icon_overlay._tooltips[detail_index]
+    tooltip._show()
+    assert tooltip.window is not None
+    assert tooltip.window.winfo_children()[0].cget("text") == "说明\n旧说明"
+
+    new_source = Path("C:/root/新项目.txt")
+    new_item = RenameCandidate(
+        source=new_source,
+        target=new_source.with_name("归档项目.txt"),
+        kind=ItemKind.FILE,
+        status=CandidateStatus.READY,
+        detail="新说明",
+    )
+    app._fill_tree(app.result_tree, [new_item], root=Path("C:/root"))
+    tk_window.update()
+    app.result_icon_overlay.refresh()
+
+    assert tooltip.window is None
+    assert tooltip.text == "说明\n新说明"
+
+
 def test_status_and_detail_icons_select_rows_and_refresh_one_details_dialog(tk_window):
     app = BatchRenameApp(
         tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
@@ -1007,6 +1047,23 @@ def test_horizontal_scrollbar_hides_when_everything_is_visible(tk_window):
 
     scrollbar.set("0.0", "0.5")
     assert scrollbar.winfo_manager() == "grid"
+
+
+def test_result_table_reserves_border_space_so_horizontal_scrollbar_stays_hidden(
+    tk_window,
+):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
+    )
+    app._fill_tree(
+        app.result_tree,
+        [candidate("项目说明.txt", ItemKind.FILE)],
+        root=Path("C:/root"),
+    )
+    tk_window.deiconify()
+    tk_window.update()
+
+    assert app.result_horizontal_scrollbar.winfo_manager() == ""
 
 
 def test_centered_dialog_geometry_is_clamped_to_parent_monitor():
