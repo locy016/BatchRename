@@ -617,6 +617,102 @@ def test_result_icon_overlay_covers_visible_type_status_and_detail_cells(tk_wind
     assert app.result_icon_overlay.visible_icon_data == ()
 
 
+def test_status_and_detail_icons_select_rows_and_refresh_one_details_dialog(tk_window):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
+    )
+    first_source = Path("C:/root/合同/2026/清单.xlsx")
+    first = RenameCandidate(
+        source=first_source,
+        target=first_source.with_name("归档-清单.xlsx"),
+        kind=ItemKind.FILE,
+        status=CandidateStatus.READY,
+        detail="规则匹配有效，可以执行重命名。",
+    )
+    second_source = Path("C:/root/合同/重复.xlsx")
+    second = RenameCandidate(
+        source=second_source,
+        target=second_source.with_name("清单.xlsx"),
+        kind=ItemKind.FILE,
+        status=CandidateStatus.CONFLICT,
+        detail="目标名称已经存在，程序不会覆盖。",
+    )
+    app._fill_tree(app.result_tree, [first, second], root=Path("C:/root"))
+    tk_window.deiconify()
+    tk_window.update()
+    app.result_icon_overlay.refresh()
+
+    rows = app.result_tree.get_children()
+    assert app._result_row_details[rows[0]] == {
+        "kind": "文件",
+        "parent": r"合同\2026",
+        "old": "清单.xlsx",
+        "new": "归档-清单.xlsx",
+        "status": "可修改",
+        "detail": "规则匹配有效，可以执行重命名。",
+    }
+
+    first_status = next(
+        canvas
+        for canvas in app.result_icon_overlay._canvases
+        if getattr(canvas, "_tree_item_id", "") == rows[0]
+        and getattr(canvas, "_tree_column", "") == "status"
+    )
+    app.result_icon_overlay._activate(first_status)
+    tk_window.update()
+
+    details_window = app.dialogs.windows["result-item-details"]
+    assert app.result_tree.selection() == (rows[0],)
+    assert app.result_item_detail_vars["focus"].get().startswith("状态：可修改")
+    assert tuple(
+        variable.get() for key, variable in app.result_item_detail_vars.items() if key != "focus"
+    ) == (
+        "文件",
+        r"合同\2026",
+        "清单.xlsx",
+        "归档-清单.xlsx",
+        "可修改",
+        "规则匹配有效，可以执行重命名。",
+    )
+
+    second_detail = next(
+        canvas
+        for canvas in app.result_icon_overlay._canvases
+        if getattr(canvas, "_tree_item_id", "") == rows[1]
+        and getattr(canvas, "_tree_column", "") == "detail"
+    )
+    app.result_icon_overlay._activate(second_detail)
+    tk_window.update()
+
+    assert app.dialogs.windows["result-item-details"] is details_window
+    assert app.result_tree.selection() == (rows[1],)
+    assert app.result_item_detail_vars["focus"].get().startswith("说明：")
+    assert app.result_item_detail_vars["status"].get() == CandidateStatus.CONFLICT.value
+    assert app.result_item_detail_vars["detail"].get() == "目标名称已经存在，程序不会覆盖。"
+
+
+def test_type_icon_selects_the_row_without_opening_details(tk_window):
+    app = BatchRenameApp(tk_window)
+    app._fill_tree(
+        app.result_tree,
+        [candidate("资料", ItemKind.DIRECTORY)],
+        root=Path("C:/root"),
+    )
+    tk_window.deiconify()
+    tk_window.update()
+    app.result_icon_overlay.refresh()
+    type_icon = next(
+        canvas
+        for canvas in app.result_icon_overlay._canvases
+        if getattr(canvas, "_tree_column", "") == "kind"
+    )
+
+    app.result_icon_overlay._activate(type_icon)
+
+    assert app.result_tree.selection() == (app.result_tree.get_children()[0],)
+    assert "result-item-details" not in app.dialogs.windows
+
+
 def test_default_layout_fits_960_by_680_and_expands_the_result_area(tk_window):
     app = BatchRenameApp(
         tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)

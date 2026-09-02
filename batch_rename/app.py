@@ -982,6 +982,7 @@ class BatchRenameApp:
         self._last_matches: MatchResult | None = None
         self._last_scan: ScanResult | None = None
         self._last_execution: ExecutionResult | None = None
+        self._result_row_details: dict[str, dict[str, str]] = {}
         self._responsive_after_id: str | None = None
         self._last_responsive_size: tuple[int, int] | None = None
         self._last_result_width: tuple[int, str] | None = None
@@ -2160,6 +2161,7 @@ class BatchRenameApp:
             tree,
             background=self.COLORS["card"],
             selected_background="#D9EAF2",
+            on_activate=self._show_result_item_details,
         )
         tree.bind("<Configure>", self._on_result_tree_configure, add="+")
 
@@ -2488,20 +2490,30 @@ class BatchRenameApp:
         *,
         root: Path,
     ) -> None:
+        self._reset_result_row_details()
         tree.delete(*tree.get_children())
         for item in items:
-            tree.insert(
+            parent_text = result_parent_text(root, item.source)
+            row_id = tree.insert(
                 "",
                 "end",
                 values=(
                     item.kind.value,
-                    result_parent_text(root, item.source),
+                    parent_text,
                     item.source.name,
                     "",
                     "等待结果预览",
                     "填写替换内容后生成结果预览",
                 ),
             )
+            self._result_row_details[row_id] = {
+                "kind": item.kind.value,
+                "parent": parent_text,
+                "old": item.source.name,
+                "new": "",
+                "status": "等待结果预览",
+                "detail": "填写替换内容后生成结果预览",
+            }
         if tree is self.result_tree:
             self.new_name_overlay.schedule()
             self.result_icon_overlay.schedule()
@@ -2513,6 +2525,7 @@ class BatchRenameApp:
         *,
         root: Path,
     ) -> None:
+        self._reset_result_row_details()
         tree.delete(*tree.get_children())
         for item in items:
             if item.status is CandidateStatus.READY:
@@ -2521,12 +2534,13 @@ class BatchRenameApp:
                 tag = "unchanged"
             else:
                 tag = "blocked"
-            tree.insert(
+            parent_text = result_parent_text(root, item.source)
+            row_id = tree.insert(
                 "",
                 "end",
                 values=(
                     item.kind.value,
-                    result_parent_text(root, item.source),
+                    parent_text,
                     item.old_name,
                     item.new_name,
                     item.status.value,
@@ -2534,9 +2548,127 @@ class BatchRenameApp:
                 ),
                 tags=(tag,),
             )
+            self._result_row_details[row_id] = {
+                "kind": item.kind.value,
+                "parent": parent_text,
+                "old": item.old_name,
+                "new": item.new_name,
+                "status": item.status.value,
+                "detail": item.detail,
+            }
         if tree is self.result_tree:
             self.new_name_overlay.schedule()
             self.result_icon_overlay.schedule()
+
+    def _reset_result_row_details(self) -> None:
+        """清除旧行详情，并关闭已失去数据来源的详情窗口。"""
+
+        self._result_row_details = {}
+        if "result-item-details" in self.dialogs.windows:
+            self.dialogs.close("result-item-details")
+
+    def _show_result_item_details(self, item_id: str, focus_column: str) -> None:
+        """显示图标所在行的完整只读信息，不触碰扫描或文件状态。"""
+
+        details = self._result_row_details.get(item_id)
+        if details is None:
+            return
+        explanation = details["detail"] or "暂无补充说明。"
+        if focus_column == "status":
+            focus_text = f"状态：{details['status']}\n{explanation}"
+        else:
+            focus_text = f"说明：{explanation}"
+        values = {
+            "focus": focus_text,
+            "kind": details["kind"],
+            "parent": details["parent"],
+            "old": details["old"],
+            "new": details["new"],
+            "status": details["status"],
+            "detail": explanation,
+        }
+        existing = self.dialogs.windows.get("result-item-details")
+        if (
+            existing is not None
+            and existing.winfo_exists()
+            and hasattr(self, "result_item_detail_vars")
+        ):
+            for key, value in values.items():
+                self.result_item_detail_vars[key].set(value)
+            self.dialogs.open(
+                "result-item-details",
+                title="匹配结果详情",
+                size=(680, 500),
+                build=lambda _window: None,
+            )
+            return
+
+        def build(window: tk.Toplevel) -> None:
+            self.result_item_detail_vars = {
+                key: tk.StringVar(window, value=value) for key, value in values.items()
+            }
+            outer = ttk.Frame(window, style="App.TFrame", padding=18)
+            outer.pack(fill="both", expand=True)
+            ttk.Label(
+                outer,
+                text="匹配结果详情",
+                style="SectionTitle.TLabel",
+            ).pack(anchor="w")
+            ttk.Label(
+                outer,
+                textvariable=self.result_item_detail_vars["focus"],
+                style="Feedback.TLabel",
+                justify="left",
+                wraplength=620,
+                padding=(12, 10),
+            ).pack(fill="x", pady=(10, 12))
+
+            fields = ttk.Frame(outer, style="Card.TFrame", padding=(14, 12))
+            fields.pack(fill="both", expand=True)
+            fields.columnconfigure(1, weight=1)
+            labels = (
+                ("类型", "kind"),
+                ("所在目录", "parent"),
+                ("原名称", "old"),
+                ("新名称", "new"),
+                ("状态", "status"),
+            )
+            for row, (label_text, key) in enumerate(labels):
+                ttk.Label(fields, text=label_text, style="Field.TLabel").grid(
+                    row=row, column=0, sticky="nw", padx=(0, 12), pady=5
+                )
+                entry = ttk.Entry(
+                    fields,
+                    textvariable=self.result_item_detail_vars[key],
+                    state="readonly",
+                    style="Modern.TEntry",
+                )
+                entry.grid(row=row, column=1, sticky="ew", pady=5)
+            detail_row = len(labels)
+            ttk.Label(fields, text="完整说明", style="Field.TLabel").grid(
+                row=detail_row, column=0, sticky="nw", padx=(0, 12), pady=5
+            )
+            ttk.Label(
+                fields,
+                textvariable=self.result_item_detail_vars["detail"],
+                style="Card.TLabel",
+                justify="left",
+                wraplength=500,
+                padding=(1, 5),
+            ).grid(row=detail_row, column=1, sticky="ew", pady=5)
+            ttk.Button(
+                outer,
+                text="关闭",
+                command=lambda: self.dialogs.close("result-item-details"),
+                style="Secondary.TButton",
+            ).pack(anchor="e", pady=(12, 0))
+
+        self.dialogs.open(
+            "result-item-details",
+            title="匹配结果详情",
+            size=(680, 500),
+            build=build,
+        )
 
     def _sync_command_states(self) -> None:
         if not hasattr(self, "preview_button"):
