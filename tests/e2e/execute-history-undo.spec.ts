@@ -1,0 +1,1 @@
+import{test,expect}from'@playwright/test';test('日志和撤回入口可达',async({page})=>{await page.goto('/#/history');await expect(page.getByRole('heading',{name:'操作日志'})).toBeVisible();await page.getByRole('link',{name:'撤回管理'}).click();await expect(page.getByRole('heading',{name:'撤回管理'})).toBeVisible()})

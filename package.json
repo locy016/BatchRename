@@ -8,6 +8,7 @@
     "build": "vue-tsc -b && vite build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "vue-router": "^5.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^26.4.1",
     "@vitejs/plugin-vue": "^6.0.8",
