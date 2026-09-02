@@ -39,3 +39,12 @@ def test_workflow_visual_is_valid_svg_xml():
 
     assert root.tag.endswith("svg")
     assert root.attrib["viewBox"] == "0 0 1440 360"
+
+
+def test_readme_describes_current_compact_result_table_and_window_minimum():
+    markdown = README_PATH.read_text(encoding="utf-8")
+
+    assert "1120×720" in markdown
+    assert "（根目录）" in markdown
+    assert "语义图标" in markdown
+    assert "匹配结果详情" in markdown
