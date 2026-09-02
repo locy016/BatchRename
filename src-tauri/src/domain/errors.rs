@@ -36,6 +36,8 @@ pub enum DomainError {
     Busy,
     #[error("文件系统操作失败：{0}")]
     Io(String),
+    #[error("扫描结果已经失效，请重新扫描")]
+    StaleSnapshot,
 }
 
 impl DomainError {
@@ -58,6 +60,7 @@ impl DomainError {
             Self::Cancelled => "cancelled",
             Self::Busy => "busy",
             Self::Io(_) => "ioError",
+            Self::StaleSnapshot => "staleSnapshot",
         }
     }
 }

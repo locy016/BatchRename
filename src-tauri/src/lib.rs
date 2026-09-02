@@ -10,7 +10,9 @@ pub fn run() {
         .manage(state::job_manager::JobManager::default())
         .invoke_handler(tauri::generate_handler![
             commands::scan::start_scan,
-            commands::scan::cancel_active_job
+            commands::scan::cancel_active_job,
+            commands::preview::build_rename_preview,
+            commands::preview::get_preview_page
         ])
         .run(tauri::generate_context!())
         .expect("批量重命名启动失败");

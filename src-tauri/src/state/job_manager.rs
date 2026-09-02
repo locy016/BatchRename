@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 use crate::domain::errors::DomainError;
-use crate::domain::models::MatchSnapshot;
+use crate::domain::models::{MatchSnapshot, PreviewResult};
 
 #[derive(Debug, Clone, Default)]
 pub struct CancellationToken(Arc<AtomicBool>);
@@ -55,6 +55,7 @@ pub struct JobHandle {
 struct JobState {
     active: Option<JobHandle>,
     snapshot: Option<(String, MatchSnapshot)>,
+    preview: Option<(String, PreviewResult)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -97,8 +98,36 @@ impl JobManager {
             .is_some_and(|job| job.id == identifier)
         {
             state.snapshot = Some((identifier.to_owned(), snapshot));
+            state.preview = None;
             state.active = None;
         }
+    }
+
+    pub fn save_preview(
+        &self,
+        identifier: &str,
+        preview: PreviewResult,
+    ) -> Result<(), DomainError> {
+        let mut state = self.0.lock().expect("任务状态锁不应中毒");
+        if state
+            .snapshot
+            .as_ref()
+            .is_none_or(|(job_id, _)| job_id != identifier)
+        {
+            return Err(DomainError::StaleSnapshot);
+        }
+        state.preview = Some((identifier.to_owned(), preview));
+        Ok(())
+    }
+
+    pub fn preview(&self, identifier: &str) -> Option<PreviewResult> {
+        self.0
+            .lock()
+            .expect("任务状态锁不应中毒")
+            .preview
+            .as_ref()
+            .filter(|(job_id, _)| job_id == identifier)
+            .map(|(_, preview)| preview.clone())
     }
 
     pub fn snapshot(&self, identifier: &str) -> Option<MatchSnapshot> {

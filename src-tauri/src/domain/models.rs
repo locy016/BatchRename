@@ -76,6 +76,35 @@ pub struct RenameCandidate {
     pub detail: String,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewSummary {
+    pub matched: usize,
+    pub ready: usize,
+    pub unchanged: usize,
+    pub conflicts: usize,
+    pub invalid: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreviewResult {
+    pub root: PathBuf,
+    pub candidates: Vec<RenameCandidate>,
+    pub summary: PreviewSummary,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewPage {
+    pub items: Vec<RenameCandidate>,
+    pub total: usize,
+    pub offset: usize,
+    pub limit: usize,
+    pub summary: PreviewSummary,
+    pub warnings: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OperationStatus {
     #[serde(rename = "准备中")]
