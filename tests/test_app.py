@@ -688,6 +688,51 @@ def test_floating_tool_panel_has_border_and_offset_shadow(tk_window):
     assert app.templates_panel_shadow.winfo_manager() == ""
 
 
+def test_tool_panel_opens_next_to_the_button_that_triggered_it(tk_window):
+    app = BatchRenameApp(tk_window)
+    tk_window.deiconify()
+    tk_window.update()
+
+    app.regex_templates_button.invoke()
+    tk_window.update()
+
+    assert app._active_tool_trigger is app.regex_templates_button
+    assert (
+        app.templates_panel.winfo_rootx()
+        >= app.regex_templates_button.winfo_rootx()
+        + app.regex_templates_button.winfo_width()
+    )
+
+
+def test_dragging_tool_panel_header_moves_shadow_and_clamps_to_workspace(tk_window):
+    app = BatchRenameApp(tk_window)
+    tk_window.deiconify()
+    tk_window.update()
+    app._toggle_tool_panel("settings", trigger=app.settings_tool_button)
+    tk_window.update()
+
+    app._start_tool_panel_drag(SimpleNamespace(x_root=400, y_root=500))
+    app._drag_tool_panel(SimpleNamespace(x_root=-1000, y_root=-1000))
+    app._finish_tool_panel_drag()
+    tk_window.update()
+
+    assert app._tool_panel_position == (12, 12)
+    assert app.settings_panel.winfo_x() == 12
+    assert app.settings_panel.winfo_y() == 12
+    assert app.settings_panel_shadow.winfo_x() == 18
+    assert app.settings_panel_shadow.winfo_y() == 18
+
+
+def test_only_tool_panel_header_owns_drag_bindings(tk_window):
+    app = BatchRenameApp(tk_window)
+
+    assert app.templates_panel_header.bind("<ButtonPress-1>")
+    assert app.templates_panel_title.bind("<ButtonPress-1>")
+    assert app.templates_panel_helper.bind("<ButtonPress-1>")
+    assert not app.regex_template_list.bind("<ButtonPress-1>")
+    assert not app.regex_search_entry.bind("<ButtonPress-1>")
+
+
 @pytest.mark.parametrize(
     ("size", "mode"),
     [((1120, 720), "standard"), ((1600, 900), "spacious"), ((1120, 1000), "compact")],

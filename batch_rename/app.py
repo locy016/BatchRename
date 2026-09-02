@@ -1868,14 +1868,14 @@ class BatchRenameApp:
             navigation,
             text=".*",
             style="CompactNav.TButton",
-            command=self._show_regex_examples,
+            command=lambda: self._show_regex_examples(self.compact_templates_button),
         )
         self.compact_templates_button.grid(row=3, column=0, sticky="ew", pady=(0, 6))
         self.compact_settings_button = ttk.Button(
             navigation,
             text="⚙",
             style="CompactNav.TButton",
-            command=self._show_settings,
+            command=lambda: self._show_settings(self.compact_settings_button),
         )
         self.compact_settings_button.grid(row=4, column=0, sticky="ew")
         self._input_widgets.extend(
@@ -2260,7 +2260,7 @@ class BatchRenameApp:
             rail,
             text="⌘  正则模板",
             style="WorkflowTool.TButton",
-            command=self._show_regex_examples,
+            command=lambda: self._show_regex_examples(self.regex_templates_button),
         )
         self.regex_templates_button.grid(
             row=15,
@@ -2273,7 +2273,7 @@ class BatchRenameApp:
             rail,
             text="⚙  设置",
             style="WorkflowTool.TButton",
-            command=self._show_settings,
+            command=lambda: self._show_settings(self.settings_tool_button),
         )
         self.settings_tool_button.grid(
             row=16,
@@ -2317,6 +2317,9 @@ class BatchRenameApp:
 
     def _build_tool_panels(self, parent: ttk.Frame) -> None:
         self.active_tool_panel: str | None = None
+        self._active_tool_trigger: ttk.Widget | None = None
+        self._tool_panel_position: tuple[int, int] | None = None
+        self._tool_panel_drag_origin: tuple[int, int, int, int] | None = None
         self.settings_panel_shadow = tk.Frame(
             parent,
             background=self.COLORS["panel_shadow"],
@@ -2329,6 +2332,7 @@ class BatchRenameApp:
         self.settings_panel.columnconfigure(0, weight=1)
         self.settings_panel.rowconfigure(1, weight=1)
         (
+            self.settings_panel_header,
             self.settings_panel_title,
             self.settings_panel_helper,
             self.settings_panel_close,
@@ -2436,6 +2440,7 @@ class BatchRenameApp:
         self.templates_panel.columnconfigure(0, weight=1)
         self.templates_panel.rowconfigure(1, weight=1)
         (
+            self.templates_panel_header,
             self.templates_panel_title,
             self.templates_panel_helper,
             self.templates_panel_close,
@@ -2590,7 +2595,7 @@ class BatchRenameApp:
         panel: ttk.Frame,
         title: str,
         helper: str,
-    ) -> tuple[ttk.Label, ttk.Label, ttk.Button]:
+    ) -> tuple[ttk.Frame, ttk.Label, ttk.Label, ttk.Button]:
         header = ttk.Frame(panel, style="Card.TFrame")
         header.grid(row=0, column=0, sticky="ew")
         header.columnconfigure(0, weight=1)
@@ -2610,7 +2615,16 @@ class BatchRenameApp:
             command=self._close_tool_panel,
         )
         close_button.grid(row=0, column=1, rowspan=2, sticky="ne")
-        return title_label, helper_label, close_button
+        for drag_handle in (header, title_label, helper_label):
+            drag_handle.configure(cursor="fleur")
+            drag_handle.bind(
+                "<ButtonPress-1>", self._start_tool_panel_drag, add="+"
+            )
+            drag_handle.bind("<B1-Motion>", self._drag_tool_panel, add="+")
+            drag_handle.bind(
+                "<ButtonRelease-1>", self._finish_tool_panel_drag, add="+"
+            )
+        return header, title_label, helper_label, close_button
 
     def _build_settings_group(
         self,
@@ -2633,7 +2647,9 @@ class BatchRenameApp:
         ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(3, 0))
         return group, title_label
 
-    def _toggle_tool_panel(self, name: str) -> None:
+    def _toggle_tool_panel(
+        self, name: str, *, trigger: ttk.Widget | None = None
+    ) -> None:
         if self.active_tool_panel == name:
             self._close_tool_panel()
             return
@@ -2642,7 +2658,23 @@ class BatchRenameApp:
         self._close_workflow_drawer()
         self._close_tool_panel()
         self.active_tool_panel = name
+        self._active_tool_trigger = trigger or self._default_tool_trigger(name)
         self._position_active_tool_panel()
+
+    def _default_tool_trigger(self, name: str) -> ttk.Widget:
+        """为程序化打开和旧调用选择当前布局中的默认入口。"""
+
+        if self.current_layout_mode == "compact":
+            return (
+                self.compact_settings_button
+                if name == "settings"
+                else self.compact_templates_button
+            )
+        return (
+            self.settings_tool_button
+            if name == "settings"
+            else self.regex_templates_button
+        )
 
     def _position_active_tool_panel(self) -> None:
         """将工作面板居中放入侧栏右侧，并限制在主内容区域内。"""
@@ -2655,10 +2687,10 @@ class BatchRenameApp:
             else self.templates_panel
         )
         self.root.update_idletasks()
-        rail_width = self.RAIL_WIDTHS[self.current_layout_mode]
         margin = 12
-        x = rail_width + margin
-        available_width = max(1, self.body_frame.winfo_width() - x - margin)
+        rail_width = self.RAIL_WIDTHS[self.current_layout_mode]
+        body_width = max(1, self.body_frame.winfo_width())
+        available_width = max(1, body_width - rail_width - margin * 2)
         target_width = 720 if self.current_layout_mode == "spacious" else 620
         width = min(target_width, available_width)
         body_height = max(1, self.body_frame.winfo_height())
@@ -2668,7 +2700,49 @@ class BatchRenameApp:
             available_height,
             max(target_height, panel.winfo_reqheight()),
         )
-        y = max(margin, (body_height - height) // 2)
+        if self._tool_panel_position is not None:
+            x, y = clamp_floating_panel_position(
+                requested=self._tool_panel_position,
+                workspace_size=(body_width, body_height),
+                panel_size=(width, height),
+                margin=margin,
+            )
+            self._tool_panel_position = (x, y)
+        else:
+            trigger = self._active_tool_trigger
+            if trigger is not None and trigger.winfo_exists():
+                trigger_bounds = (
+                    trigger.winfo_rootx() - self.body_frame.winfo_rootx(),
+                    trigger.winfo_rooty() - self.body_frame.winfo_rooty(),
+                    max(1, trigger.winfo_width()),
+                    max(1, trigger.winfo_height()),
+                )
+            else:
+                trigger_bounds = (
+                    margin,
+                    body_height - margin,
+                    rail_width - margin * 2,
+                    1,
+                )
+            x, y = floating_panel_position(
+                workspace_size=(body_width, body_height),
+                panel_size=(width, height),
+                trigger_bounds=trigger_bounds,
+                margin=margin,
+            )
+        self._place_active_tool_panel(panel, x=x, y=y, width=width, height=height)
+
+    def _place_active_tool_panel(
+        self,
+        panel: ttk.Frame,
+        *,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+    ) -> None:
+        """同步移动当前面板及其阴影层。"""
+
         shadow = (
             self.settings_panel_shadow
             if self.active_tool_panel == "settings"
@@ -2679,15 +2753,77 @@ class BatchRenameApp:
         panel.place(x=x, y=y, width=width, height=height)
         panel.lift()
 
+    def _start_tool_panel_drag(self, event: tk.Event) -> str | None:
+        """记录标题拖拽起点；内容区控件不会调用此方法。"""
+
+        if self.active_tool_panel is None:
+            return None
+        panel = (
+            self.settings_panel
+            if self.active_tool_panel == "settings"
+            else self.templates_panel
+        )
+        self._tool_panel_drag_origin = (
+            int(event.x_root),
+            int(event.y_root),
+            panel.winfo_x(),
+            panel.winfo_y(),
+        )
+        return "break"
+
+    def _drag_tool_panel(self, event: tk.Event) -> str | None:
+        """移动当前面板，并把坐标限制在主内容区。"""
+
+        if self.active_tool_panel is None or self._tool_panel_drag_origin is None:
+            return None
+        start_x, start_y, panel_x, panel_y = self._tool_panel_drag_origin
+        panel = (
+            self.settings_panel
+            if self.active_tool_panel == "settings"
+            else self.templates_panel
+        )
+        body_size = (
+            max(1, self.body_frame.winfo_width()),
+            max(1, self.body_frame.winfo_height()),
+        )
+        panel_size = (max(1, panel.winfo_width()), max(1, panel.winfo_height()))
+        self._tool_panel_position = clamp_floating_panel_position(
+            requested=(
+                panel_x + int(event.x_root) - start_x,
+                panel_y + int(event.y_root) - start_y,
+            ),
+            workspace_size=body_size,
+            panel_size=panel_size,
+            margin=12,
+        )
+        x, y = self._tool_panel_position
+        self._place_active_tool_panel(
+            panel,
+            x=x,
+            y=y,
+            width=panel_size[0],
+            height=panel_size[1],
+        )
+        return "break"
+
+    def _finish_tool_panel_drag(self, _event=None) -> str | None:
+        if self._tool_panel_drag_origin is None:
+            return None
+        self._tool_panel_drag_origin = None
+        return "break"
+
     def _close_tool_panel(self) -> None:
         self.settings_panel_shadow.place_forget()
         self.templates_panel_shadow.place_forget()
         self.settings_panel.place_forget()
         self.templates_panel.place_forget()
         self.active_tool_panel = None
+        self._active_tool_trigger = None
+        self._tool_panel_position = None
+        self._tool_panel_drag_origin = None
 
-    def _show_settings(self) -> None:
-        self._toggle_tool_panel("settings")
+    def _show_settings(self, trigger: ttk.Widget | None = None) -> None:
+        self._toggle_tool_panel("settings", trigger=trigger)
 
     def _filter_regex_templates(self, _event=None) -> None:
         category = self.regex_category_var.get()
@@ -4086,8 +4222,8 @@ class BatchRenameApp:
         )
         filter_category()
 
-    def _show_regex_examples(self) -> None:
-        self._toggle_tool_panel("templates")
+    def _show_regex_examples(self, trigger: ttk.Widget | None = None) -> None:
+        self._toggle_tool_panel("templates", trigger=trigger)
 
     def _show_help(self) -> None:
         help_text = """使用流程
