@@ -72,6 +72,7 @@ THEME_PALETTES = {
         "blocked": "#C43D4B",
         "tooltip": "#FFFFFF",
         "tooltip_border": "#C7CDD6",
+        "panel_shadow": "#C8CDD6",
     },
     "dark": {
         "background": "#0F1115",
@@ -96,6 +97,7 @@ THEME_PALETTES = {
         "blocked": "#F26B77",
         "tooltip": "#20242D",
         "tooltip_border": "#475467",
+        "panel_shadow": "#080A0E",
     },
 }
 
@@ -1354,6 +1356,15 @@ class BatchRenameApp:
         )
         style.configure("Header.TFrame", background=colors["navy"])
         style.configure("Card.TFrame", background=colors["card"], relief="flat")
+        style.configure(
+            "FloatingPanel.TFrame",
+            background=colors["card"],
+            bordercolor=colors["border"],
+            lightcolor=colors["border"],
+            darkcolor=colors["border"],
+            borderwidth=1,
+            relief="solid",
+        )
         style.configure("PanelSection.TFrame", background=colors["surface_alt"], relief="flat")
         style.configure(
             "PanelSectionTitle.TLabel",
@@ -2245,19 +2256,6 @@ class BatchRenameApp:
         )
         self.rule_feedback_label.grid(row=13, column=0, columnspan=2, sticky="ew", pady=(5, 0))
 
-        self.tools_footer_label = ttk.Label(
-            rail,
-            text="工具",
-            style="WorkflowTitle.TLabel",
-        )
-        self.tools_footer_label.grid(
-            row=15,
-            column=0,
-            columnspan=2,
-            sticky="w",
-            pady=(5, 5),
-        )
-
         self.regex_templates_button = ttk.Button(
             rail,
             text="⌘  正则模板",
@@ -2265,7 +2263,7 @@ class BatchRenameApp:
             command=self._show_regex_examples,
         )
         self.regex_templates_button.grid(
-            row=16,
+            row=15,
             column=0,
             columnspan=2,
             sticky="ew",
@@ -2278,7 +2276,7 @@ class BatchRenameApp:
             command=self._show_settings,
         )
         self.settings_tool_button.grid(
-            row=17,
+            row=16,
             column=0,
             columnspan=2,
             sticky="ew",
@@ -2319,7 +2317,15 @@ class BatchRenameApp:
 
     def _build_tool_panels(self, parent: ttk.Frame) -> None:
         self.active_tool_panel: str | None = None
-        self.settings_panel = ttk.Frame(parent, style="Card.TFrame", padding=18)
+        self.settings_panel_shadow = tk.Frame(
+            parent,
+            background=self.COLORS["panel_shadow"],
+            borderwidth=0,
+            highlightthickness=0,
+        )
+        self.settings_panel = ttk.Frame(
+            parent, style="FloatingPanel.TFrame", padding=18
+        )
         self.settings_panel.columnconfigure(0, weight=1)
         self.settings_panel.rowconfigure(1, weight=1)
         (
@@ -2418,7 +2424,15 @@ class BatchRenameApp:
         self.settings_group_labels = (scan_title, object_title, protection_title)
         self._input_widgets.extend([all_depth, limited, self.depth_spin, dirs, files, extension])
 
-        self.templates_panel = ttk.Frame(parent, style="Card.TFrame", padding=18)
+        self.templates_panel_shadow = tk.Frame(
+            parent,
+            background=self.COLORS["panel_shadow"],
+            borderwidth=0,
+            highlightthickness=0,
+        )
+        self.templates_panel = ttk.Frame(
+            parent, style="FloatingPanel.TFrame", padding=18
+        )
         self.templates_panel.columnconfigure(0, weight=1)
         self.templates_panel.rowconfigure(1, weight=1)
         (
@@ -2655,10 +2669,19 @@ class BatchRenameApp:
             max(target_height, panel.winfo_reqheight()),
         )
         y = max(margin, (body_height - height) // 2)
+        shadow = (
+            self.settings_panel_shadow
+            if self.active_tool_panel == "settings"
+            else self.templates_panel_shadow
+        )
+        shadow.place(x=x + 6, y=y + 6, width=width, height=height)
+        shadow.lift()
         panel.place(x=x, y=y, width=width, height=height)
         panel.lift()
 
     def _close_tool_panel(self) -> None:
+        self.settings_panel_shadow.place_forget()
+        self.templates_panel_shadow.place_forget()
         self.settings_panel.place_forget()
         self.templates_panel.place_forget()
         self.active_tool_panel = None

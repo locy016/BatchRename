@@ -668,6 +668,26 @@ def test_bottom_tool_panels_are_mutually_exclusive_and_collapsible(tk_window):
     assert app.templates_panel.winfo_manager() == ""
 
 
+def test_floating_tool_panel_has_border_and_offset_shadow(tk_window):
+    app = BatchRenameApp(tk_window)
+    tk_window.deiconify()
+    tk_window.update()
+
+    app._toggle_tool_panel("templates")
+    tk_window.update()
+
+    assert app.templates_panel.cget("style") == "FloatingPanel.TFrame"
+    assert app.templates_panel_shadow.winfo_manager() == "place"
+    assert app.templates_panel_shadow.winfo_x() == app.templates_panel.winfo_x() + 6
+    assert app.templates_panel_shadow.winfo_y() == app.templates_panel.winfo_y() + 6
+    assert app.templates_panel_shadow.winfo_width() == app.templates_panel.winfo_width()
+    assert app.templates_panel_shadow.winfo_height() == app.templates_panel.winfo_height()
+
+    app._close_tool_panel()
+
+    assert app.templates_panel_shadow.winfo_manager() == ""
+
+
 @pytest.mark.parametrize(
     ("size", "mode"),
     [((1120, 720), "standard"), ((1600, 900), "spacious"), ((1120, 1000), "compact")],
@@ -1397,7 +1417,7 @@ def test_workflow_actions_and_tools_use_full_width_comfortable_layout(
         }
         assert len(action_heights) == 1
         assert action_heights.pop() >= 30
-        assert app.tools_footer_label.cget("text") == "工具"
+        assert not hasattr(app, "tools_footer_label")
         assert app.regex_templates_button.grid_info()["column"] == 0
         assert app.settings_tool_button.grid_info()["column"] == 0
         assert app.regex_templates_button.grid_info()["columnspan"] == 2
