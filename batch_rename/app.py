@@ -46,6 +46,58 @@ RESULT_ELASTIC_MINIMUMS = {
     "spacious": {"parent": 160, "old": 220, "new": 250},
 }
 RESULT_ELASTIC_RATIOS = {"parent": 0.26, "old": 0.34, "new": 0.40}
+RESULT_ICON_COLORS = {
+    "neutral": "#284B6B",
+    "ready": "#177245",
+    "warning": "#A76500",
+    "blocked": "#A53A3A",
+    "pending": "#0F8B8D",
+    "info": "#2F6F9F",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class ResultIconSpec:
+    """结果表图标的绘制、颜色、悬浮文字与动作定义。"""
+
+    shape: str
+    color_name: str
+    color: str
+    tooltip: str
+    actionable: bool
+
+
+def result_icon_spec(column: str, value: str) -> ResultIconSpec:
+    """把结果表完整文字转换为不丢失语义的图标规格。"""
+
+    text = str(value)
+    if column == "kind":
+        shape = "folder" if text == ItemKind.DIRECTORY.value else "file"
+        color_name = "neutral"
+        heading = "类型"
+        actionable = False
+    elif column == "status":
+        heading = "状态"
+        actionable = True
+        if text == CandidateStatus.READY.value:
+            shape, color_name = "check", "ready"
+        elif text == CandidateStatus.UNCHANGED.value:
+            shape, color_name = "minus", "warning"
+        elif text == "等待结果预览":
+            shape, color_name = "clock", "pending"
+        else:
+            shape, color_name = "warning", "blocked"
+    else:
+        shape, color_name = "info", "info"
+        heading = "说明"
+        actionable = True
+    return ResultIconSpec(
+        shape=shape,
+        color_name=color_name,
+        color=RESULT_ICON_COLORS[color_name],
+        tooltip=f"{heading}\n{text}",
+        actionable=actionable,
+    )
 
 
 def calculate_result_column_widths(total_width: int, mode: str) -> dict[str, int]:
@@ -654,6 +706,224 @@ class TreeColumnTextOverlay:
             label.place_forget()
 
 
+class TreeCellIconOverlay:
+    """把结果表的类型、状态和说明文字覆盖为紧凑语义图标。"""
+
+    COLUMNS = ("kind", "status", "detail")
+
+    def __init__(
+        self,
+        tree: ttk.Treeview,
+        *,
+        background: str,
+        selected_background: str,
+        on_activate: Callable[[str, str], None] | None = None,
+    ) -> None:
+        self.tree = tree
+        self.background = background
+        self.selected_background = selected_background
+        self.on_activate = on_activate
+        self._canvases: list[tk.Canvas] = []
+        self._tooltips: list[ToolTip] = []
+        self._refresh_id: str | None = None
+        self.tree.bind("<Configure>", self.schedule, add="+")
+        self.tree.bind("<Expose>", self.schedule, add="+")
+        self.tree.bind("<<TreeviewSelect>>", self.schedule, add="+")
+        self.tree.bind("<MouseWheel>", self.schedule, add="+")
+        self.tree.bind("<Button-4>", self.schedule, add="+")
+        self.tree.bind("<Button-5>", self.schedule, add="+")
+
+    @property
+    def visible_icon_data(self) -> tuple[tuple[str, str, str, str], ...]:
+        """返回当前可见图标的行、列、形状和完整悬浮文字。"""
+
+        data: list[tuple[str, str, str, str]] = []
+        for canvas, tooltip in zip(self._canvases, self._tooltips):
+            if canvas.winfo_manager() != "place":
+                continue
+            data.append(
+                (
+                    getattr(canvas, "_tree_item_id", ""),
+                    getattr(canvas, "_tree_column", ""),
+                    getattr(canvas, "_icon_shape", ""),
+                    tooltip.text,
+                )
+            )
+        return tuple(data)
+
+    def schedule(self, _event=None) -> None:
+        if self._refresh_id is None and self.tree.winfo_exists():
+            self._refresh_id = self.tree.after_idle(self.refresh)
+
+    def refresh(self) -> None:
+        self._refresh_id = None
+        if not self.tree.winfo_exists() or not self.tree.winfo_ismapped():
+            self._hide_from(0)
+            return
+        selection = set(self.tree.selection())
+        visible_index = 0
+        for item_id in self.tree.get_children(""):
+            for column in self.COLUMNS:
+                bounds = self.tree.bbox(item_id, column)
+                if not bounds:
+                    continue
+                x, y, width, height = bounds
+                if width <= 2 or height <= 2:
+                    continue
+                canvas, tooltip = self._canvas_at(visible_index)
+                spec = result_icon_spec(column, self.tree.set(item_id, column))
+                background = (
+                    self.selected_background if item_id in selection else self.background
+                )
+                canvas.configure(
+                    background=background,
+                    cursor="hand2" if spec.actionable else "arrow",
+                )
+                canvas.delete("all")
+                self._draw_icon(canvas, spec, width - 2, height - 2)
+                canvas._tree_item_id = item_id  # type: ignore[attr-defined]
+                canvas._tree_column = column  # type: ignore[attr-defined]
+                canvas._icon_shape = spec.shape  # type: ignore[attr-defined]
+                canvas._icon_actionable = spec.actionable  # type: ignore[attr-defined]
+                tooltip.text = spec.tooltip
+                canvas.place(x=x + 1, y=y + 1, width=width - 2, height=height - 2)
+                canvas.tk.call("raise", canvas._w)
+                visible_index += 1
+        self._hide_from(visible_index)
+
+    def _canvas_at(self, index: int) -> tuple[tk.Canvas, ToolTip]:
+        if index == len(self._canvases):
+            canvas = tk.Canvas(
+                self.tree,
+                borderwidth=0,
+                highlightthickness=0,
+                background=self.background,
+                takefocus=False,
+            )
+            canvas.bind("<Button-1>", lambda _event, target=canvas: self._activate(target))
+            canvas.bind("<MouseWheel>", self._scroll, add="+")
+            canvas.bind("<Button-4>", lambda _event: self._scroll_lines(-1), add="+")
+            canvas.bind("<Button-5>", lambda _event: self._scroll_lines(1), add="+")
+            self._canvases.append(canvas)
+            self._tooltips.append(ToolTip(canvas, ""))
+        return self._canvases[index], self._tooltips[index]
+
+    @staticmethod
+    def _draw_icon(
+        canvas: tk.Canvas,
+        spec: ResultIconSpec,
+        width: int,
+        height: int,
+    ) -> None:
+        cx = max(1, width) / 2
+        cy = max(1, height) / 2
+        color = spec.color
+        shape = spec.shape
+        if shape == "folder":
+            canvas.create_polygon(
+                cx - 9, cy - 6,
+                cx - 2, cy - 6,
+                cx + 1, cy - 3,
+                cx + 9, cy - 3,
+                cx + 9, cy + 7,
+                cx - 9, cy + 7,
+                fill=color,
+                outline=color,
+            )
+        elif shape == "file":
+            canvas.create_polygon(
+                cx - 7, cy - 8,
+                cx + 3, cy - 8,
+                cx + 7, cy - 4,
+                cx + 7, cy + 8,
+                cx - 7, cy + 8,
+                fill="",
+                outline=color,
+                width=2,
+            )
+            canvas.create_line(cx + 3, cy - 8, cx + 3, cy - 4, cx + 7, cy - 4, fill=color)
+            canvas.create_line(cx - 4, cy, cx + 4, cy, fill=color)
+            canvas.create_line(cx - 4, cy + 4, cx + 4, cy + 4, fill=color)
+        elif shape in {"check", "minus", "clock", "info"}:
+            radius = 8
+            canvas.create_oval(
+                cx - radius,
+                cy - radius,
+                cx + radius,
+                cy + radius,
+                fill=color,
+                outline=color,
+            )
+            if shape == "check":
+                canvas.create_line(
+                    cx - 4, cy,
+                    cx - 1, cy + 3,
+                    cx + 5, cy - 4,
+                    fill="white",
+                    width=2,
+                    capstyle="round",
+                    joinstyle="round",
+                )
+            elif shape == "minus":
+                canvas.create_line(cx - 4, cy, cx + 4, cy, fill="white", width=2)
+            elif shape == "clock":
+                canvas.create_line(cx, cy, cx, cy - 4, fill="white", width=2)
+                canvas.create_line(cx, cy, cx + 4, cy + 2, fill="white", width=2)
+            else:
+                canvas.create_text(
+                    cx,
+                    cy,
+                    text="i",
+                    fill="white",
+                    font=("Segoe UI", 9, "bold"),
+                )
+        else:
+            canvas.create_polygon(
+                cx, cy - 9,
+                cx + 9, cy + 7,
+                cx - 9, cy + 7,
+                fill=color,
+                outline=color,
+            )
+            canvas.create_text(
+                cx,
+                cy + 2,
+                text="!",
+                fill="white",
+                font=("Segoe UI", 9, "bold"),
+            )
+
+    def _activate(self, canvas: tk.Canvas) -> str:
+        item_id = getattr(canvas, "_tree_item_id", "")
+        column = getattr(canvas, "_tree_column", "")
+        if item_id:
+            self.tree.selection_set(item_id)
+            self.tree.focus(item_id)
+        if (
+            item_id
+            and column
+            and getattr(canvas, "_icon_actionable", False)
+            and self.on_activate is not None
+        ):
+            self.on_activate(item_id, column)
+        return "break"
+
+    def _scroll(self, event: tk.Event) -> str:
+        delta = getattr(event, "delta", 0)
+        if delta:
+            self._scroll_lines(-1 if delta > 0 else 1)
+        return "break"
+
+    def _scroll_lines(self, lines: int) -> str:
+        self.tree.yview_scroll(lines, "units")
+        self.schedule()
+        return "break"
+
+    def _hide_from(self, index: int) -> None:
+        for canvas in self._canvases[index:]:
+            canvas.place_forget()
+
+
 class BatchRenameApp:
     """批量重命名主窗口。"""
 
@@ -1203,6 +1473,7 @@ class BatchRenameApp:
                 stretch=False,
             )
         self.new_name_overlay.schedule()
+        self.result_icon_overlay.schedule()
 
     def _on_result_tree_configure(self, event: tk.Event) -> None:
         width = max(1, int(event.width))
@@ -1885,15 +2156,22 @@ class BatchRenameApp:
             background=self.COLORS["card"],
             selected_background="#D9EAF2",
         )
+        self.result_icon_overlay = TreeCellIconOverlay(
+            tree,
+            background=self.COLORS["card"],
+            selected_background="#D9EAF2",
+        )
         tree.bind("<Configure>", self._on_result_tree_configure, add="+")
 
         def scroll_vertical(*args: str) -> None:
             tree.yview(*args)
             self.new_name_overlay.schedule()
+            self.result_icon_overlay.schedule()
 
         def scroll_horizontal(*args: str) -> None:
             tree.xview(*args)
             self.new_name_overlay.schedule()
+            self.result_icon_overlay.schedule()
 
         ybar = ttk.Scrollbar(
             parent,
@@ -2226,6 +2504,7 @@ class BatchRenameApp:
             )
         if tree is self.result_tree:
             self.new_name_overlay.schedule()
+            self.result_icon_overlay.schedule()
 
     def _fill_tree(
         self,
@@ -2257,6 +2536,7 @@ class BatchRenameApp:
             )
         if tree is self.result_tree:
             self.new_name_overlay.schedule()
+            self.result_icon_overlay.schedule()
 
     def _sync_command_states(self) -> None:
         if not hasattr(self, "preview_button"):

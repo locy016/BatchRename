@@ -16,6 +16,7 @@ from batch_rename.app import (
     centered_dialog_geometry,
     layout_mode_for_size,
     layout_mode_for_width,
+    result_icon_spec,
     result_parent_text,
     sorted_preview_items,
     summarize_candidates,
@@ -142,6 +143,48 @@ def test_result_column_widths_scale_elastic_columns_below_preferred_minimums():
 
     assert sum(widths.values()) == 420
     assert widths["new"] > widths["old"] > widths["parent"] > 0
+
+
+def test_result_icon_specs_distinguish_file_and_directory_without_status_color():
+    directory = result_icon_spec("kind", ItemKind.DIRECTORY.value)
+    file = result_icon_spec("kind", ItemKind.FILE.value)
+
+    assert directory.shape == "folder"
+    assert file.shape == "file"
+    assert directory.color == file.color
+    assert directory.tooltip == "类型\n文件夹"
+    assert directory.actionable is False
+
+
+@pytest.mark.parametrize(
+    ("status", "shape", "color_name"),
+    [
+        (CandidateStatus.READY.value, "check", "ready"),
+        (CandidateStatus.UNCHANGED.value, "minus", "warning"),
+        ("等待结果预览", "clock", "pending"),
+        (CandidateStatus.CONFLICT.value, "warning", "blocked"),
+        ("未知状态", "warning", "blocked"),
+    ],
+)
+def test_result_status_icon_specs_use_semantic_shape_and_color(
+    status, shape, color_name
+):
+    spec = result_icon_spec("status", status)
+
+    assert spec.shape == shape
+    assert spec.color_name == color_name
+    assert spec.tooltip == f"状态\n{status}"
+    assert spec.actionable is True
+
+
+def test_result_detail_icon_keeps_complete_explanation_for_hover_and_click():
+    detail = "目标名称已经存在，程序不会覆盖。"
+
+    spec = result_icon_spec("detail", detail)
+
+    assert spec.shape == "info"
+    assert spec.tooltip == f"说明\n{detail}"
+    assert spec.actionable is True
 
 
 def test_app_applies_calculated_result_widths_without_rebuilding_the_tree(tk_window):
@@ -534,6 +577,44 @@ def test_new_name_column_uses_a_dedicated_accent_text_overlay(tk_window):
     app._fill_tree(app.result_tree, [], root=Path("C:/root"))
     tk_window.update()
     assert app.new_name_overlay.visible_labels == ()
+
+
+def test_result_icon_overlay_covers_visible_type_status_and_detail_cells(tk_window):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
+    )
+    items = [
+        candidate("目录", ItemKind.DIRECTORY, CandidateStatus.READY),
+        candidate("无变化.txt", ItemKind.FILE, CandidateStatus.UNCHANGED),
+        candidate("冲突.txt", ItemKind.FILE, CandidateStatus.CONFLICT),
+    ]
+    app._fill_tree(app.result_tree, items, root=Path("C:/root"))
+    tk_window.deiconify()
+    tk_window.update()
+
+    app.result_icon_overlay.refresh()
+
+    icon_data = app.result_icon_overlay.visible_icon_data
+    assert len(icon_data) == 9
+    assert {column for _item_id, column, _shape, _tooltip in icon_data} == {
+        "kind",
+        "status",
+        "detail",
+    }
+    assert {shape for _item_id, _column, shape, _tooltip in icon_data} >= {
+        "folder",
+        "file",
+        "check",
+        "minus",
+        "warning",
+        "info",
+    }
+    assert any(tooltip == "状态\n名称未变化" for *_rest, tooltip in icon_data)
+
+    app._fill_tree(app.result_tree, [], root=Path("C:/root"))
+    tk_window.update()
+    app.result_icon_overlay.refresh()
+    assert app.result_icon_overlay.visible_icon_data == ()
 
 
 def test_default_layout_fits_960_by_680_and_expands_the_result_area(tk_window):
