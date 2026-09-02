@@ -27,6 +27,7 @@ from batch_rename.app import (
 from batch_rename.examples import REGEX_EXAMPLES
 from batch_rename.models import (
     CandidateStatus,
+    ExecutionResult,
     ItemKind,
     MatchedItem,
     MatchResult,
@@ -96,6 +97,8 @@ def test_app_loads_requested_appearance_without_touching_real_user_settings(
     assert app.requested_appearance == "dark"
     assert app.resolved_appearance == "dark"
     assert app.preferences_path == preferences_path
+    assert str(app.file_menu.cget("background")) == theme_palette("dark")["card"]
+    assert app.regex_template_list.cget("background") == theme_palette("dark")["input"]
 
 
 def test_modern_theme_palettes_define_complete_light_and_dark_tokens():
@@ -116,6 +119,8 @@ def test_modern_theme_palettes_define_complete_light_and_dark_tokens():
         "warning",
         "blocked",
         "tooltip",
+        "final_action",
+        "on_accent",
     }
 
     light = theme_palette("light")
@@ -158,6 +163,29 @@ def test_switching_appearance_repaints_in_place_and_preserves_workflow_state(
     assert app._last_scan is preview
     assert tk_window.cget("background") == theme_palette("dark")["background"]
     assert ttk.Style(tk_window).lookup("Treeview", "background") == theme_palette("dark")["card"]
+    assert ttk.Style(tk_window).lookup("TLabel", "background") == theme_palette("dark")["background"]
+    assert (
+        ttk.Style(tk_window).lookup("WorkflowFinal.TButton", "background")
+        == theme_palette("dark")["final_action"]
+    )
+    assert (
+        ttk.Style(tk_window).lookup("WorkflowFinal.TButton", "foreground")
+        == theme_palette("dark")["on_accent"]
+    )
+    assert (
+        ttk.Style(tk_window).lookup("Modern.TCombobox", "background")
+        == theme_palette("dark")["surface_alt"]
+    )
+    assert (
+        ttk.Style(tk_window).lookup("Modern.TSpinbox", "background")
+        == theme_palette("dark")["surface_alt"]
+    )
+    assert (
+        ttk.Style(tk_window).lookup(
+            "Accent.TButton", "background", ("disabled",)
+        )
+        == theme_palette("dark")["disabled"]
+    )
     assert app.new_name_overlay.background == theme_palette("dark")["card"]
     assert app.result_icon_overlay.background == theme_palette("dark")["card"]
 
@@ -623,7 +651,7 @@ def test_bottom_tool_panels_are_mutually_exclusive_and_collapsible(tk_window):
 
 @pytest.mark.parametrize(
     ("size", "mode"),
-    [((1120, 720), "standard"), ((1600, 900), "spacious"), ((1000, 900), "compact")],
+    [((1120, 720), "standard"), ((1600, 900), "spacious"), ((1120, 1000), "compact")],
 )
 def test_tool_work_panels_have_roomy_headers_and_stay_inside_workspace(
     tk_window, size, mode
@@ -838,12 +866,43 @@ def test_about_describes_current_beta_roadmap_safety_and_contact(tk_window):
     assert "正则模板" in content
     assert "撤回管理" in content and "开发中" in content
     assert "操作日志" in content and "开发中" in content
+    assert "目录概况" in content and "匹配统计" in content
+    assert "跟随系统" in content and "深色" in content
     assert "快速开发期" in content
     assert "备份" in content and "自行确认" in content
     assert app.about_email_var.get() == "lo.c@live.cn"
     assert str(app.about_email_entry.cget("state")) == "readonly"
     assert not app.about_email_entry.bind("<Button-1>")
     assert window.winfo_exists()
+
+
+def test_help_explains_inventory_statistics_work_panels_and_appearance(tk_window):
+    app = BatchRenameApp(tk_window)
+
+    app._show_help()
+
+    content = app.help_text
+    assert "目录概况" in content
+    assert "文件夹总数" in content and "文件总数" in content
+    assert "结果表下方" in content and "名称未变化" in content
+    assert "40%" in content and "60%" in content
+    assert "视图 → 外观" in content
+    assert "跟随系统" in content and "浅色" in content and "深色" in content
+
+
+def test_open_native_text_dialogs_follow_runtime_appearance_switch(tk_window):
+    app = BatchRenameApp(tk_window, system_light_provider=lambda: True)
+    app._show_help()
+    app._last_execution = ExecutionResult()
+    app._show_execution_details()
+
+    app.set_appearance("dark", persist=False)
+
+    dark = theme_palette("dark")
+    assert app.help_text_widget.cget("background") == dark["card"]
+    assert app.execution_details_text.cget("background") == dark["card"]
+    assert app.help_text_widget.cget("foreground") == dark["text"]
+    assert app.execution_details_text.cget("foreground") == dark["text"]
 
 
 def test_result_table_values_follow_the_visible_column_order(tk_window):

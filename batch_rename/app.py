@@ -59,6 +59,8 @@ THEME_PALETTES = {
         "navy_soft": "#344054",
         "accent": "#5B5BD6",
         "accent_hover": "#4848B8",
+        "final_action": "#172033",
+        "on_accent": "#FFFFFF",
         "text": "#182230",
         "muted": "#667085",
         "border": "#E4E7EC",
@@ -81,6 +83,8 @@ THEME_PALETTES = {
         "navy_soft": "#D0D5DD",
         "accent": "#8B8CFF",
         "accent_hover": "#A5A6FF",
+        "final_action": "#343A46",
+        "on_accent": "#FFFFFF",
         "text": "#F3F4F6",
         "muted": "#98A2B3",
         "border": "#2D3440",
@@ -1130,6 +1134,7 @@ class BatchRenameApp:
         )
         self.COLORS = theme_palette(self.resolved_appearance)
         self._app_tooltips: list[ToolTip] = []
+        self._theme_text_widgets: list[tk.Text] = []
         self.root.title("批量重命名工具")
         self.initial_window_layout = calculate_window_layout(work_area_provider(root))
         self.root.geometry(self.initial_window_layout.geometry)
@@ -1192,6 +1197,7 @@ class BatchRenameApp:
         self._configure_style()
         self._load_application_icon()
         self._build_ui()
+        self._apply_runtime_theme()
         self._apply_responsive_layout(*self.initial_window_layout.size)
         self.root.bind("<Configure>", self._schedule_responsive_layout, add="+")
         self.root.bind("<FocusIn>", self._on_root_focus_for_theme, add="+")
@@ -1206,6 +1212,7 @@ class BatchRenameApp:
             style.theme_use("clam")
         colors = self.COLORS
         style.configure("TFrame", background=colors["background"])
+        style.configure("TLabel", background=colors["background"], foreground=colors["text"])
         style.configure("App.TFrame", background=colors["background"])
         style.configure("Workflow.TFrame", background="#EAF0F5")
         style.configure("WorkflowCard.TFrame", background="#EAF0F5")
@@ -1213,7 +1220,7 @@ class BatchRenameApp:
         style.configure(
             "CompactNav.TButton",
             background="#17324D",
-            foreground="#FFFFFF",
+            foreground=colors["on_accent"],
             borderwidth=0,
             relief="flat",
             padding=(5, 9),
@@ -1274,8 +1281,8 @@ class BatchRenameApp:
         style.map("WorkflowSecondary.TButton", background=[("active", "#D2E0E9")])
         style.configure(
             "WorkflowFinal.TButton",
-            background=colors["navy"],
-            foreground=colors["card"],
+            background=colors["final_action"],
+            foreground=colors["on_accent"],
             borderwidth=0,
             padding=(10, 7),
             font=("Microsoft YaHei UI", 9),
@@ -1664,8 +1671,8 @@ class BatchRenameApp:
         )
         style.configure(
             "WorkflowFinal.TButton",
-            background=colors["navy"],
-            foreground=colors["card"],
+            background=colors["final_action"],
+            foreground=colors["on_accent"],
         )
         style.map(
             "WorkflowFinal.TButton",
@@ -1703,6 +1710,8 @@ class BatchRenameApp:
             )
         for input_style in ("Modern.TEntry", "Modern.TSpinbox", "Modern.TCombobox"):
             style.configure(input_style, fieldbackground=colors["input"], foreground=colors["text"])
+        style.configure("Modern.TSpinbox", background=colors["surface_alt"])
+        style.configure("Modern.TCombobox", background=colors["surface_alt"])
         style.map(
             "Modern.TEntry",
             fieldbackground=[("disabled", colors["surface_alt"])],
@@ -1715,6 +1724,11 @@ class BatchRenameApp:
             arrowcolor=[("active", colors["accent"]), ("disabled", colors["disabled"])],
         )
         style.map("Modern.TCombobox", fieldbackground=[("readonly", colors["input"])])
+        style.map(
+            "Accent.TButton",
+            background=[("active", colors["accent_hover"]), ("disabled", colors["disabled"])],
+            foreground=[("disabled", colors["surface_alt"])],
+        )
         style.configure("Secondary.TButton", background=colors["surface_alt"], foreground=colors["navy"])
         style.map("Secondary.TButton", background=[("active", colors["sidebar_active"])])
         style.configure(
@@ -2021,6 +2035,23 @@ class BatchRenameApp:
         self._app_tooltips.append(tooltip)
         return tooltip
 
+    def _register_theme_text(self, widget: tk.Text) -> tk.Text:
+        self._theme_text_widgets.append(widget)
+        self._style_native_text(widget)
+        return widget
+
+    def _style_native_text(self, widget: tk.Text) -> None:
+        colors = self.COLORS
+        widget.configure(
+            background=colors["card"],
+            foreground=colors["text"],
+            insertbackground=colors["text"],
+            selectbackground=colors["selection"],
+            selectforeground=colors["text"],
+            highlightbackground=colors["border"],
+            highlightcolor=colors["accent"],
+        )
+
     def _apply_runtime_theme(self) -> None:
         """重绘无法只靠 ttk 样式自动更新的原生与覆盖层组件。"""
 
@@ -2052,6 +2083,16 @@ class BatchRenameApp:
                 selectbackground=colors["accent"],
                 selectforeground=colors["card"],
             )
+        live_text_widgets: list[tk.Text] = []
+        for widget in self._theme_text_widgets:
+            try:
+                if not widget.winfo_exists():
+                    continue
+                self._style_native_text(widget)
+                live_text_widgets.append(widget)
+            except tk.TclError:
+                continue
+        self._theme_text_widgets = live_text_widgets
         self.new_name_overlay.set_theme(
             foreground=colors["accent"],
             background=colors["card"],
@@ -3689,6 +3730,8 @@ class BatchRenameApp:
                 "• 文件夹和文件统一分类排序、冲突拦截与执行确认\n"
                 "• 普通文本、正则表达式、经典正则模板与一键应用\n"
                 "• 相对目录、语义状态图标、悬浮提示与单项详情\n"
+                "• 目录概况、扫描总量与结果表下方的匹配统计\n"
+                "• 跟随系统、浅色和深色三种可保存外观\n"
                 "• 多层目录、扩展名保护、处理进度和执行结果详情\n\n"
                 "正在开发中\n"
                 "• 撤回管理（开发中）\n"
@@ -3738,7 +3781,17 @@ class BatchRenameApp:
                 ),
                 style="Stats.TLabel",
             ).pack(anchor="w", pady=(0, 8))
-            text = tk.Text(frame, wrap="none", font=("Consolas", 9))
+            text = self._register_theme_text(
+                tk.Text(
+                    frame,
+                    wrap="none",
+                    font=("Consolas", 9),
+                    relief="flat",
+                    borderwidth=0,
+                    highlightthickness=1,
+                )
+            )
+            self.execution_details_text = text
             ybar = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
             xbar = ttk.Scrollbar(frame, orient="horizontal", command=text.xview)
             text.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
@@ -3977,15 +4030,27 @@ class BatchRenameApp:
 1. 在左侧选择根目录。根目录本身不会改名，只处理其内部项目。
 2. 选择普通文本或正则表达式，填写查找内容，点击“扫描”或在查找框按 Enter。扫描只列出名称匹配项，不要求替换内容，也不会修改磁盘。
 3. 填写“替换为”，点击“结果预览”或在替换框按 Enter。预览使用刚才的匹配快照计算新名称和安全状态，不会再次读取目录。
-4. 在统一结果表中按“类型、所在目录、原名称、新名称、状态、说明”检查结果；所在目录从当前根目录之后开始显示。类型、状态和说明使用紧凑图标，把鼠标停在图标上可查看完整文字；点击状态或说明图标会打开该项目的完整详情。新名称使用青绿色便于对照，原名称和新名称会随结果区宽度自动伸缩。
+4. 在统一结果表中按“类型、所在目录、原名称、新名称、状态、说明”检查结果；所在目录从当前根目录之后开始显示。类型、状态和说明使用紧凑图标，把鼠标停在图标上可查看完整文字；点击状态或说明图标会打开该项目的完整详情。新名称使用当前主题的强调色便于对照，原名称和新名称会随结果区宽度自动伸缩。
 5. 点击“确认执行”，核对汇总并二次确认。执行期间会显示逐项进度，完成后可从“功能 → 结果详情”查看记录。
 6. 层级、文件夹/文件范围和扩展名保护位于左下角“设置”；正则模板与设置互斥显示，再次点击、按 Esc 或点击结果区会收起。
+
+目录概况与匹配统计
+
+结果区上方的目录概况显示当前目录、扫描范围、扫描所得文件夹总数和文件总数，以及无法读取位置的提醒。这些数字描述实际遍历范围，不受“只处理文件夹 / 文件”筛选影响。
+
+匹配统计位于结果表下方，分别显示匹配、可修改、名称未变化和阻止执行。完成扫描但尚未生成结果预览时，匹配数量仍保持准确，其余三项显示“—”，避免把“没有执行动作”误解成“没有找到”。
 
 窗口与紧凑导航
 
 程序启动时会跟随鼠标所在显示器选择初始大小，窗口始终保留 1120×720 的完整工作台尺寸。标准屏、超宽屏和竖屏使用不同的内容比例；手动放大时，结果区会优先获得空间。
 
-竖屏或窗口内容比例偏窄时，左侧流程会折叠为深色导航条。点击顶部流程图标展开工作流抽屉；底部“.*”和齿轮图标分别打开正则模板与设置。工作流、模板和设置互斥显示，可重复点击、按 Esc 或点击结果区收起。缩放不会清空已经填写的目录、规则、匹配或预览。
+竖屏或窗口内容比例偏窄时，左侧流程会折叠为窄导航栏。点击顶部流程图标展开工作流抽屉；底部“.*”和齿轮图标分别打开正则模板与设置。工作流、模板和设置互斥显示，可重复点击、按 Esc 或点击结果区收起。缩放不会清空已经填写的目录、规则、匹配或预览。
+
+工作面板与外观
+
+正则模板使用约 40% 的模板库和 60% 的规则详情双栏布局，完整展示用途、表达式、替换内容、处理前后示例和必要选项；设置按扫描范围、处理对象和名称保护三组排列。两个面板都带“关闭”按钮，也可按 Esc 收起。
+
+从“视图 → 外观”可选择“跟随系统”“浅色”或“深色”。选择会自动保存，切换外观不会清空输入、匹配结果或预览；跟随系统模式会在窗口重新获得焦点时检查 Windows 当前外观。
 
 普通文本模式
 
@@ -4004,17 +4069,24 @@ class BatchRenameApp:
 工具不会覆盖已有项目。目标已存在、多个项目生成同一目标、名称含 Windows 非法字符、名称为空或使用 CON 等保留名时，预览会用红色标出并跳过。执行前还会再次检查磁盘状态。子项目先于父文件夹处理；符号链接不会被跟随。
 
 注意：执行完成后本工具不提供自动撤销。建议对重要目录先备份，并认真检查预览。"""
+        self.help_text = help_text
         def build(window: tk.Toplevel) -> None:
             frame = ttk.Frame(window, padding=12)
             frame.pack(fill="both", expand=True)
-            text = tk.Text(
-                frame,
-                wrap="word",
-                padx=10,
-                pady=10,
-                font=("Microsoft YaHei UI", 10),
-                spacing2=3,
+            text = self._register_theme_text(
+                tk.Text(
+                    frame,
+                    wrap="word",
+                    padx=10,
+                    pady=10,
+                    font=("Microsoft YaHei UI", 10),
+                    spacing2=3,
+                    relief="flat",
+                    borderwidth=0,
+                    highlightthickness=1,
+                )
             )
+            self.help_text_widget = text
             scrollbar = ttk.Scrollbar(
                 frame,
                 orient="vertical",

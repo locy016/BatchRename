@@ -48,3 +48,14 @@ def test_readme_describes_current_compact_result_table_and_window_minimum():
     assert "（根目录）" in markdown
     assert "语义图标" in markdown
     assert "匹配结果详情" in markdown
+
+
+def test_readme_describes_the_modern_workspace_inventory_and_appearance_modes():
+    markdown = README_PATH.read_text(encoding="utf-8")
+
+    assert "目录概况" in markdown
+    assert "扫描范围、文件夹总数和文件总数" in markdown
+    assert "匹配统计" in markdown and "结果表下方" in markdown
+    assert "视图 → 外观" in markdown
+    assert all(mode in markdown for mode in ("跟随系统", "浅色", "深色"))
+    assert "正则模板" in markdown and "40%" in markdown and "60%" in markdown
