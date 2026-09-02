@@ -14,6 +14,8 @@ from batch_rename.app import (
     calculate_result_column_widths,
     calculate_window_layout,
     centered_dialog_geometry,
+    directory_inventory_view,
+    directory_scope_text,
     layout_mode_for_size,
     layout_mode_for_width,
     result_icon_spec,
@@ -75,6 +77,84 @@ def menu_labels(menu):
 def test_main_exposes_callable_entrypoint():
     assert callable(main.main)
     assert BatchRenameApp.__name__ == "BatchRenameApp"
+
+
+@pytest.mark.parametrize(
+    ("mode", "depth", "expected"),
+    [("all", 1, "全部层级"), ("limited", 3, "最多 3 层")],
+)
+def test_directory_scope_text_explains_the_current_traversal_depth(
+    mode, depth, expected
+):
+    assert directory_scope_text(mode, depth) == expected
+
+
+def test_directory_inventory_view_has_idle_scanning_and_completed_states():
+    idle = directory_inventory_view(None)
+    scanning = directory_inventory_view(None, scanning=True)
+    completed = directory_inventory_view(
+        MatchResult(
+            root=Path("C:/root"),
+            search="项目",
+            use_regex=False,
+            scanned_directory_count=12,
+            scanned_file_count=34,
+            errors=["无法读取一", "无法读取二"],
+        )
+    )
+
+    assert (idle.folder_count, idle.file_count, idle.state, idle.warning) == (
+        "—",
+        "—",
+        "尚未扫描",
+        "",
+    )
+    assert scanning.state == "正在统计"
+    assert (completed.folder_count, completed.file_count) == ("12", "34")
+    assert completed.state == "扫描完成"
+    assert completed.warning == "2 处无法读取"
+
+
+def test_app_keeps_directory_context_in_separate_display_variables(tk_window):
+    app = BatchRenameApp(tk_window)
+    snapshot = MatchResult(
+        root=Path("C:/资料"),
+        search="项目",
+        use_regex=False,
+        scanned_directory_count=7,
+        scanned_file_count=19,
+    )
+
+    app._set_directory_inventory(snapshot)
+
+    assert app.directory_context_path_var.get() == str(snapshot.root)
+    assert app.directory_context_scope_var.get() == "全部层级"
+    assert app.directory_folder_count_var.get() == "7"
+    assert app.directory_file_count_var.get() == "19"
+    assert app.directory_inventory_state_var.get() == "扫描完成"
+
+
+def test_directory_inventory_survives_rule_changes_but_resets_for_scope_changes(
+    tk_window,
+):
+    app = BatchRenameApp(tk_window)
+    snapshot = MatchResult(
+        root=Path(app.directory_var.get()),
+        search="项目",
+        use_regex=False,
+        scanned_directory_count=4,
+        scanned_file_count=9,
+    )
+    app._set_directory_inventory(snapshot)
+
+    app.search_var.set("合同")
+    assert app.directory_folder_count_var.get() == "4"
+    assert app.directory_file_count_var.get() == "9"
+
+    app.depth_mode_var.set("limited")
+    assert app.directory_folder_count_var.get() == "—"
+    assert app.directory_file_count_var.get() == "—"
+    assert app.directory_inventory_state_var.get() == "尚未扫描"
 
 
 @pytest.mark.parametrize(

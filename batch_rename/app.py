@@ -176,6 +176,42 @@ class WindowLayout:
         return f"{self.width}x{self.height}+{self.x}+{self.y}"
 
 
+@dataclass(frozen=True, slots=True)
+class DirectoryInventoryView:
+    """目录概况栏使用的稳定显示值。"""
+
+    folder_count: str
+    file_count: str
+    state: str
+    warning: str
+
+
+def directory_scope_text(mode: str, depth: int) -> str:
+    """把扫描层级设置转换为目录概况中的简短说明。"""
+
+    return "全部层级" if mode == "all" else f"最多 {max(1, int(depth))} 层"
+
+
+def directory_inventory_view(
+    snapshot: MatchResult | None,
+    *,
+    scanning: bool = False,
+) -> DirectoryInventoryView:
+    """返回扫描前、扫描中或扫描完成后的目录概况文字。"""
+
+    if scanning:
+        return DirectoryInventoryView("—", "—", "正在统计", "")
+    if snapshot is None:
+        return DirectoryInventoryView("—", "—", "尚未扫描", "")
+    error_count = len(snapshot.errors)
+    return DirectoryInventoryView(
+        folder_count=str(snapshot.scanned_directory_count),
+        file_count=str(snapshot.scanned_file_count),
+        state="扫描完成",
+        warning=f"{error_count} 处无法读取" if error_count else "",
+    )
+
+
 def calculate_window_layout(work_area: tuple[int, int, int, int]) -> WindowLayout:
     """按显示器工作区分类并计算居中的初始窗口布局。"""
 
@@ -987,6 +1023,14 @@ class BatchRenameApp:
         )
         self.status_var = tk.StringVar(value="请设置目录和规则，然后点击“结果预览”。")
         self.progress_text_var = tk.StringVar(value="等待操作")
+        self.directory_context_path_var = tk.StringVar(value=self.directory_var.get())
+        self.directory_context_scope_var = tk.StringVar(
+            value=directory_scope_text(self.depth_mode_var.get(), self.depth_var.get())
+        )
+        self.directory_folder_count_var = tk.StringVar(value="—")
+        self.directory_file_count_var = tk.StringVar(value="—")
+        self.directory_inventory_state_var = tk.StringVar(value="尚未扫描")
+        self.directory_inventory_warning_var = tk.StringVar()
 
         self._messages: queue.Queue[tuple] = queue.Queue()
         self._busy = False
@@ -994,6 +1038,7 @@ class BatchRenameApp:
         self._last_matches: MatchResult | None = None
         self._last_scan: ScanResult | None = None
         self._last_execution: ExecutionResult | None = None
+        self._inventory_scanning = False
         self._result_row_details: dict[str, dict[str, str]] = {}
         self._responsive_after_id: str | None = None
         self._last_responsive_size: tuple[int, int] | None = None
@@ -2233,15 +2278,19 @@ class BatchRenameApp:
         ToolTip(status, "状态栏会提示当前结果和建议的下一步操作。")
 
     def _bind_change_tracking(self) -> None:
-        match_variables = [
+        scope_variables = [
             self.directory_var,
             self.depth_mode_var,
             self.depth_var,
+        ]
+        match_variables = [
             self.search_var,
             self.regex_var,
             self.include_dirs_var,
             self.include_files_var,
         ]
+        for variable in scope_variables:
+            variable.trace_add("write", self._on_scope_input_changed)
         for variable in match_variables:
             variable.trace_add("write", self._on_match_input_changed)
         for variable in (self.replacement_var, self.rename_extension_var):
@@ -2249,6 +2298,26 @@ class BatchRenameApp:
         self.preview_limit_var.trace_add("write", lambda *_: self._render_preview())
         self.search_entry.bind("<Return>", self._search_from_entry)
         self.replacement_entry.bind("<Return>", self._preview_from_replacement)
+
+    def _set_directory_inventory(
+        self,
+        snapshot: MatchResult | None = None,
+        *,
+        scanning: bool = False,
+    ) -> None:
+        """原地更新目录上下文，不影响匹配或预览业务状态。"""
+
+        view = directory_inventory_view(snapshot, scanning=scanning)
+        self.directory_context_path_var.set(
+            str(snapshot.root) if snapshot is not None else self.directory_var.get().strip()
+        )
+        self.directory_context_scope_var.set(
+            directory_scope_text(self.depth_mode_var.get(), self.depth_var.get())
+        )
+        self.directory_folder_count_var.set(view.folder_count)
+        self.directory_file_count_var.set(view.file_count)
+        self.directory_inventory_state_var.set(view.state)
+        self.directory_inventory_warning_var.set(view.warning)
 
     def _search_from_entry(self, _event=None) -> str:
         self._start_search()
@@ -2268,6 +2337,11 @@ class BatchRenameApp:
             self._render_preview()
         self._update_rule_feedback(validate_replacement=False)
         self._sync_command_states()
+
+    def _on_scope_input_changed(self, *_args) -> None:
+        self._inventory_scanning = False
+        self._set_directory_inventory(None)
+        self._on_match_input_changed()
 
     def _on_preview_input_changed(self, *_args) -> None:
         if not self._busy and self._last_scan is not None:
@@ -2356,6 +2430,8 @@ class BatchRenameApp:
         self._last_scan = None
         self._last_execution = None
         self.feature_menu.entryconfigure(self.result_details_menu_index, state="disabled")
+        self._inventory_scanning = True
+        self._set_directory_inventory(None, scanning=True)
         self._set_busy(True)
         self.progress.configure(mode="indeterminate")
         self.progress.start(12)
@@ -2381,6 +2457,8 @@ class BatchRenameApp:
         self._set_busy(False)
         self._last_matches = result
         self._last_scan = None
+        self._inventory_scanning = False
+        self._set_directory_inventory(result)
         matched_total = len(result.items)
         self.stats_var.set(
             f"匹配：{matched_total}项 | 可修改：— | 名称未变化：— | 阻止执行：—"
@@ -2771,6 +2849,7 @@ class BatchRenameApp:
         self._last_execution = result
         self._last_matches = None
         self._last_scan = None
+        self._set_directory_inventory(None)
         self._sync_command_states()
         self.progress.configure(value=max(len(result.records), 1))
         self.progress_text_var.set(
@@ -2804,6 +2883,9 @@ class BatchRenameApp:
                     self._set_busy(False)
                     self.progress_text_var.set(message[1])
                     self.status_var.set(f"{message[1]}：{message[2]}")
+                    if self._inventory_scanning:
+                        self._inventory_scanning = False
+                        self._set_directory_inventory(None)
                     messagebox.showerror(message[1], message[2], parent=self.root)
         except queue.Empty:
             pass
