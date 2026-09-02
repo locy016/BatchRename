@@ -124,6 +124,44 @@ pub struct ExecutionSummary {
     pub failed: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UndoCheckItem {
+    pub item_index: usize,
+    pub current_source: PathBuf,
+    pub restore_target: PathBuf,
+    pub kind: ItemKind,
+    pub safe: bool,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UndoCheckResult {
+    pub operation_id: String,
+    pub token: String,
+    pub items: Vec<UndoCheckItem>,
+    pub safe: bool,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UndoProgress {
+    pub current: usize,
+    pub total: usize,
+    pub path: PathBuf,
+    pub outcome: String,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UndoSummary {
+    pub succeeded: usize,
+    pub failed: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OperationStatus {
     #[serde(rename = "准备中")]
