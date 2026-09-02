@@ -5,3 +5,9 @@ build/
 dist/
 .worktrees/
 *.spec.bak
+node_modules/
+target/
+coverage/
+playwright-report/
+test-results/
+.vite/

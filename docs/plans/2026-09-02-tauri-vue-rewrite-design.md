@@ -47,7 +47,7 @@
 - `uuid`、`time` 或等价的纯 Rust 时间与标识组件
 - Rust 标准文件系统 API；目录遍历保持可控层级和不跟随符号链接
 
-开发环境使用 Node.js 22 LTS。当前机器的 Node.js 16.20.2 不满足现代 Vue/Vite 工具链，且尚未安装 Rust，因此环境准备是实施阶段第一项门禁。
+开发环境使用满足当前 Vue/Vite 要求的 Node.js LTS。实施开始前本机只有 Node.js 16.20.2 且尚未安装 Rust；环境门禁最终安装 Node.js 24.19.0、npm 11.17.0、Rust 1.98.0 stable-msvc，并确认现有 Visual Studio 2022 C++ 工具链与 WebView2 Runtime 可用。
 
 ## 仓库布局
 

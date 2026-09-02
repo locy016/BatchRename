@@ -35,7 +35,7 @@ Expected: 当前首次执行显示 Node.js 16.20.2，且 Rust 命令不存在，
 
 **Step 2: 升级开发环境**
 
-在取得系统级安装授权后安装 Node.js 22 LTS、Rust stable-msvc、Visual Studio C++ Build Tools 的“使用 C++ 的桌面开发”组件，并确认 WebView2 Runtime。不要在未授权时静默修改系统环境。
+在取得系统级安装授权后安装满足当前 Vue/Vite 要求的 Node.js LTS、Rust stable-msvc、Visual Studio C++ Build Tools 的“使用 C++ 的桌面开发”组件，并确认 WebView2 Runtime。不要在未授权时静默修改系统环境。
 
 Run:
 
@@ -46,7 +46,7 @@ rustc --version
 cargo --version
 ```
 
-Expected: Node.js 为 22 LTS，Rust 与 Cargo 使用稳定 MSVC 工具链。
+Expected: Node.js 满足当前 Vue/Vite 最低版本，Rust 与 Cargo 使用稳定 MSVC 工具链。
 
 **Step 3: 为 Python 基线脚本写失败测试**
 
