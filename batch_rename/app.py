@@ -37,8 +37,8 @@ from .models import (
 )
 
 
-MIN_WINDOW_WIDTH = 960
-MIN_WINDOW_HEIGHT = 680
+MIN_WINDOW_WIDTH = 1120
+MIN_WINDOW_HEIGHT = 720
 RESULT_FIXED_COLUMN_WIDTHS = {"kind": 44, "status": 48, "detail": 44}
 RESULT_ELASTIC_MINIMUMS = {
     "compact": {"parent": 90, "old": 130, "new": 150},

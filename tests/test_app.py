@@ -80,16 +80,16 @@ def test_main_exposes_callable_entrypoint():
 @pytest.mark.parametrize(
     ("work_area", "screen_kind", "size", "geometry", "layout_mode"),
     [
-        ((0, 0, 1920, 1080), "standard", (960, 680), "960x680+480+200", "compact"),
+        ((0, 0, 1920, 1080), "standard", (1120, 720), "1120x720+400+180", "standard"),
         ((0, 0, 2560, 1440), "standard", (1280, 720), "1280x720+640+360", "standard"),
         ((0, 0, 3840, 2160), "standard", (1920, 1080), "1920x1080+960+540", "spacious"),
         ((0, 0, 3440, 1440), "ultrawide", (1582, 979), "1582x979+929+230", "spacious"),
         ((0, 0, 5120, 1440), "ultrawide", (1664, 979), "1664x979+1728+230", "spacious"),
-        ((0, 0, 1080, 1920), "portrait", (972, 1118), "972x1118+54+401", "compact"),
+        ((0, 0, 1080, 1920), "portrait", (1120, 1288), "1120x1288+0+316", "compact"),
         ((0, 0, 1440, 2560), "portrait", (1296, 1490), "1296x1490+72+535", "compact"),
         ((0, 0, 2160, 3840), "portrait", (1944, 2236), "1944x2236+108+802", "compact"),
         ((-2560, 0, 0, 1440), "standard", (1280, 720), "1280x720+-1920+360", "standard"),
-        ((100, 50, 900, 650), "standard", (960, 680), "960x680+100+50", "compact"),
+        ((100, 50, 900, 650), "standard", (1120, 720), "1120x720+100+50", "standard"),
     ],
 )
 def test_window_layout_classifies_and_centers_on_the_selected_work_area(
@@ -205,9 +205,9 @@ def test_app_applies_calculated_result_widths_without_rebuilding_the_tree(tk_win
 @pytest.mark.parametrize(
     ("work_area", "geometry"),
     [
-        ((0, 0, 1920, 1080), "960x680+480+200"),
+        ((0, 0, 1920, 1080), "1120x720+400+180"),
         ((1920, 0, 5360, 1440), "1582x979+2849+230"),
-        ((-1080, 0, 0, 1920), "972x1118+-1026+401"),
+        ((-1080, 0, 0, 1920), "1120x1288+-1080+316"),
     ],
 )
 def test_app_uses_injected_pointer_monitor_work_area_for_initial_geometry(
@@ -224,7 +224,7 @@ def test_app_uses_injected_pointer_monitor_work_area_for_initial_geometry(
     assert provider_calls == [tk_window]
     assert app.initial_window_layout.geometry == geometry
     assert tk_window.geometry() == geometry
-    assert tk_window.minsize() == (960, 680)
+    assert tk_window.minsize() == (1120, 720)
 
 
 def test_preview_combines_categories_and_uses_natural_name_order():
@@ -713,16 +713,16 @@ def test_type_icon_selects_the_row_without_opening_details(tk_window):
     assert "result-item-details" not in app.dialogs.windows
 
 
-def test_default_layout_fits_960_by_680_and_expands_the_result_area(tk_window):
+def test_default_layout_uses_content_sized_minimum_and_expands_the_result_area(tk_window):
     app = BatchRenameApp(
         tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
     )
     tk_window.update_idletasks()
 
-    assert tk_window.geometry().startswith("960x680")
-    assert tk_window.minsize() == (960, 680)
-    assert tk_window.winfo_reqwidth() <= 960
-    assert tk_window.winfo_reqheight() <= 680
+    assert tk_window.geometry().startswith("1120x720")
+    assert tk_window.minsize() == (1120, 720)
+    assert tk_window.winfo_reqwidth() <= 1120
+    assert tk_window.winfo_reqheight() <= 720
     assert int(app.result_tree.cget("height")) >= 10
     assert app.main_content.grid_rowconfigure(1)["weight"] > 0
     assert app.result_workspace.grid_rowconfigure(1)["weight"] > 0
@@ -831,7 +831,7 @@ def test_destroying_window_removes_pending_responsive_callback(
 
 def test_compact_navigation_reuses_the_workflow_rail_as_a_drawer(tk_window):
     app = BatchRenameApp(
-        tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
+        tk_window, work_area_provider=lambda _root: (0, 0, 1080, 1920)
     )
     search_entry = app.search_entry
     tk_window.deiconify()
@@ -984,6 +984,7 @@ def test_busy_compact_workflow_can_close_but_cannot_be_reopened(tk_window):
     app = BatchRenameApp(
         tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
     )
+    app._apply_responsive_layout(1000, 800)
     app.workflow_nav_button.invoke()
     assert app.workflow_drawer_open is True
 
