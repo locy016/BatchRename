@@ -24,6 +24,18 @@ pub enum DomainError {
     TrailingDotOrSpace,
     #[error("{0} 是 Windows 保留名称")]
     ReservedName(String),
+    #[error("所选目录不存在或不是文件夹")]
+    InvalidRoot,
+    #[error("扫描层级必须是大于或等于 1 的整数")]
+    InvalidDepth,
+    #[error("请至少选择文件夹或文件中的一类")]
+    NoItemKinds,
+    #[error("任务已取消")]
+    Cancelled,
+    #[error("正在执行会修改磁盘的任务，请稍后再试")]
+    Busy,
+    #[error("文件系统操作失败：{0}")]
+    Io(String),
 }
 
 impl DomainError {
@@ -40,6 +52,12 @@ impl DomainError {
             Self::InvalidNameCharacter => "invalidNameCharacter",
             Self::TrailingDotOrSpace => "trailingDotOrSpace",
             Self::ReservedName(_) => "reservedName",
+            Self::InvalidRoot => "invalidRoot",
+            Self::InvalidDepth => "invalidDepth",
+            Self::NoItemKinds => "noItemKinds",
+            Self::Cancelled => "cancelled",
+            Self::Busy => "busy",
+            Self::Io(_) => "ioError",
         }
     }
 }

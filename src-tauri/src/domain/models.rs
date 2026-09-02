@@ -46,6 +46,28 @@ pub struct MatchedItem {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ScanProgress {
+    pub job_id: String,
+    pub phase: String,
+    pub scanned_total: usize,
+    pub matched_total: usize,
+    pub warning: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatchSnapshot {
+    pub root: PathBuf,
+    pub search: String,
+    pub use_regex: bool,
+    pub items: Vec<MatchedItem>,
+    pub warnings: Vec<String>,
+    pub scanned_directory_count: usize,
+    pub scanned_file_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RenameCandidate {
     pub source: PathBuf,
     pub target: PathBuf,
