@@ -1,0 +1,1 @@
+import{createPinia,setActivePinia}from'pinia';import{describe,expect,it}from'vitest';import{useHistoryStore}from'../stores/history';describe('日志状态',()=>{it('初始列表为空且详情延迟加载',()=>{setActivePinia(createPinia());const s=useHistoryStore();expect(s.items).toEqual([]);expect(s.selected).toBeNull()})})

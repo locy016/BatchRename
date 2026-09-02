@@ -1,0 +1,1 @@
+import{createPinia,setActivePinia}from'pinia';import{describe,expect,it}from'vitest';import{useUndoStore}from'../stores/undo';describe('撤回门禁',()=>{it('没有安全检查时不能执行',()=>{setActivePinia(createPinia());const s=useUndoStore();expect(s.check?.safe??false).toBe(false)})})
