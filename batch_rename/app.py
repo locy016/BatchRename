@@ -145,6 +145,16 @@ def sorted_preview_items(
     return items if limit is None else items[: max(0, limit)]
 
 
+def result_parent_text(root: Path, source: Path) -> str:
+    """返回项目父目录相对于当前扫描根目录的显示文字。"""
+
+    try:
+        relative_parent = source.parent.relative_to(root)
+    except ValueError:
+        return str(source.parent)
+    return "（根目录）" if relative_parent == Path(".") else str(relative_parent)
+
+
 def summarize_candidates(candidates: Iterable[RenameCandidate]) -> dict[str, int]:
     """返回界面统计所需的分类计数。"""
 
@@ -2136,14 +2146,27 @@ class BatchRenameApp:
             self._fill_tree(
                 self.result_tree,
                 sorted_preview_items(self._last_scan.candidates, limit),
+                root=self._last_scan.root,
             )
         elif self._last_matches is not None:
-            self._fill_matches(self.result_tree, self._last_matches.items[:limit])
+            self._fill_matches(
+                self.result_tree,
+                self._last_matches.items[:limit],
+                root=self._last_matches.root,
+            )
         else:
-            self._fill_tree(self.result_tree, [])
+            self._fill_tree(
+                self.result_tree,
+                [],
+                root=Path(self.directory_var.get()),
+            )
 
     def _fill_matches(
-        self, tree: ttk.Treeview, items: Iterable[MatchedItem]
+        self,
+        tree: ttk.Treeview,
+        items: Iterable[MatchedItem],
+        *,
+        root: Path,
     ) -> None:
         tree.delete(*tree.get_children())
         for item in items:
@@ -2152,7 +2175,7 @@ class BatchRenameApp:
                 "end",
                 values=(
                     item.kind.value,
-                    str(item.source.parent),
+                    result_parent_text(root, item.source),
                     item.source.name,
                     "",
                     "等待结果预览",
@@ -2163,7 +2186,11 @@ class BatchRenameApp:
             self.new_name_overlay.schedule()
 
     def _fill_tree(
-        self, tree: ttk.Treeview, items: Iterable[RenameCandidate]
+        self,
+        tree: ttk.Treeview,
+        items: Iterable[RenameCandidate],
+        *,
+        root: Path,
     ) -> None:
         tree.delete(*tree.get_children())
         for item in items:
@@ -2178,7 +2205,7 @@ class BatchRenameApp:
                 "end",
                 values=(
                     item.kind.value,
-                    str(item.source.parent),
+                    result_parent_text(root, item.source),
                     item.old_name,
                     item.new_name,
                     item.status.value,

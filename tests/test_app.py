@@ -15,6 +15,7 @@ from batch_rename.app import (
     centered_dialog_geometry,
     layout_mode_for_size,
     layout_mode_for_width,
+    result_parent_text,
     sorted_preview_items,
     summarize_candidates,
 )
@@ -154,6 +155,20 @@ def test_preview_combines_categories_and_uses_natural_name_order():
     preview = sorted_preview_items(items, limit=3)
 
     assert [item.old_name for item in preview] == ["目录2", "目录10", "文件2.txt"]
+
+
+@pytest.mark.parametrize(
+    ("root", "source", "expected"),
+    [
+        (Path("C:/资料"), Path("C:/资料/合同.docx"), "（根目录）"),
+        (Path("C:/资料"), Path("C:/资料/合同/2026/清单.xlsx"), r"合同\2026"),
+        (Path("C:/资料"), Path("D:/外部/清单.xlsx"), str(Path("D:/外部"))),
+    ],
+)
+def test_result_parent_text_is_relative_to_the_selected_root(
+    root, source, expected
+):
+    assert result_parent_text(root, source) == expected
 
 
 def test_summary_counts_categories_and_ready_items():
@@ -446,12 +461,12 @@ def test_result_table_values_follow_the_visible_column_order(tk_window):
     app = BatchRenameApp(tk_window)
     item = candidate("文件2.txt", ItemKind.FILE)
 
-    app._fill_tree(app.result_tree, [item])
+    app._fill_tree(app.result_tree, [item], root=Path("C:/root"))
 
     row = app.result_tree.get_children()[0]
     assert app.result_tree.item(row, "values") == (
         "文件",
-        str(item.source.parent),
+        "（根目录）",
         "文件2.txt",
         "新-文件2.txt",
         "可修改",
@@ -464,7 +479,11 @@ def test_new_name_column_uses_a_dedicated_accent_text_overlay(tk_window):
     tk_window.deiconify()
     tk_window.update()
 
-    app._fill_tree(app.result_tree, [candidate("文件2.txt", ItemKind.FILE)])
+    app._fill_tree(
+        app.result_tree,
+        [candidate("文件2.txt", ItemKind.FILE)],
+        root=Path("C:/root"),
+    )
     tk_window.update()
 
     visible_labels = app.new_name_overlay.visible_labels
@@ -472,7 +491,7 @@ def test_new_name_column_uses_a_dedicated_accent_text_overlay(tk_window):
     assert visible_labels[0].cget("text") == "新-文件2.txt"
     assert visible_labels[0].cget("foreground") == app.COLORS["accent"]
 
-    app._fill_tree(app.result_tree, [])
+    app._fill_tree(app.result_tree, [], root=Path("C:/root"))
     tk_window.update()
     assert app.new_name_overlay.visible_labels == ()
 
