@@ -29,8 +29,11 @@ from batch_rename.app import (
 )
 from batch_rename.examples import REGEX_EXAMPLES
 from batch_rename.history import (
+    OperationItem,
+    OperationLog,
     OperationStatus,
     OperationStore,
+    UndoStatus,
     create_operation_log,
 )
 from batch_rename.models import (
@@ -921,14 +924,14 @@ def test_top_menu_contains_only_global_commands(tk_window):
     assert menu_labels(app.file_menu) == ("退出",)
     assert menu_labels(app.feature_menu) == (
         "结果详情",
-        "撤回管理（开发中）",
-        "操作日志（开发中）",
+        "撤回管理",
+        "操作日志",
     )
     assert menu_labels(app.help_menu) == ("使用说明", "关于")
     assert menu_labels(app.view_menu) == ("外观",)
     assert menu_labels(app.appearance_menu) == ("跟随系统", "浅色", "深色")
-    assert app.feature_menu.entrycget(app.undo_menu_index, "state") == "disabled"
-    assert app.feature_menu.entrycget(app.log_menu_index, "state") == "disabled"
+    assert app.feature_menu.entrycget(app.undo_menu_index, "state") == "normal"
+    assert app.feature_menu.entrycget(app.log_menu_index, "state") == "normal"
 
     workflow_labels = {
         app.directory_select_button.cget("text"),
@@ -943,6 +946,93 @@ def test_top_menu_contains_only_global_commands(tk_window):
         + menu_labels(app.help_menu)
     )
     assert workflow_labels.isdisjoint(top_commands)
+
+
+def _saved_operation_for_ui(tmp_path, *, identifier="ui-operation"):
+    target = tmp_path / "新名称.txt"
+    target.write_text("content", encoding="utf-8")
+    return OperationLog(
+        identifier=identifier,
+        created_at="2026-09-02T13:00:00+08:00",
+        updated_at="2026-09-02T13:01:00+08:00",
+        root=tmp_path,
+        search="旧名称",
+        replacement="新名称",
+        status=OperationStatus.COMPLETED,
+        items=[
+            OperationItem(
+                source=tmp_path / "旧名称.txt",
+                target=target,
+                kind=ItemKind.FILE,
+                outcome="成功",
+                detail="重命名完成",
+                execution_index=1,
+                undo_status=UndoStatus.PENDING,
+            )
+        ],
+    )
+
+
+def test_history_center_menu_entries_share_one_window_and_select_requested_page(
+    tk_window, tmp_path
+):
+    store = OperationStore(tmp_path / "operations")
+    store.create(_saved_operation_for_ui(tmp_path))
+    app = BatchRenameApp(tk_window, operation_store=store)
+
+    app._show_history_center("logs")
+    first_window = app.dialogs.windows["history-center"]
+
+    assert app.history_notebook.tab(app.history_notebook.select(), "text") == "操作日志"
+    assert len(app.history_tree.get_children()) == 1
+
+    app._show_history_center("undo")
+
+    assert app.dialogs.windows["history-center"] is first_window
+    assert app.history_notebook.tab(app.history_notebook.select(), "text") == "撤回管理"
+    assert len(app.undo_operations_tree.get_children()) == 1
+
+
+def test_operation_log_page_filters_and_displays_selected_item_details(
+    tk_window, tmp_path
+):
+    store = OperationStore(tmp_path / "operations")
+    store.create(_saved_operation_for_ui(tmp_path))
+    store.create(_saved_operation_for_ui(tmp_path, identifier="another-operation"))
+    app = BatchRenameApp(tk_window, operation_store=store)
+    app._show_history_center("logs")
+
+    app.history_query_var.set("ui-operation")
+    app._refresh_history_lists()
+    rows = app.history_tree.get_children()
+    app.history_tree.selection_set(rows[0])
+    app._show_selected_history_operation()
+
+    assert len(rows) == 1
+    assert app.history_detail_vars["identifier"].get() == "ui-operation"
+    assert app.history_detail_vars["root"].get() == str(tmp_path)
+    assert app.history_detail_vars["rule"].get() == "旧名称 → 新名称"
+    assert len(app.history_item_tree.get_children()) == 1
+
+
+def test_undo_manager_enables_confirmation_only_after_safe_current_check(
+    tk_window, tmp_path
+):
+    store = OperationStore(tmp_path / "operations")
+    store.create(_saved_operation_for_ui(tmp_path))
+    app = BatchRenameApp(tk_window, operation_store=store)
+    app._show_history_center("undo")
+    row = app.undo_operations_tree.get_children()[0]
+    app.undo_operations_tree.selection_set(row)
+    app._show_selected_undo_operation()
+
+    assert app.undo_execute_button.instate(["disabled"])
+
+    app._check_selected_undo_operation()
+
+    assert not app.undo_execute_button.instate(["disabled"])
+    assert "检查通过" in app.undo_check_summary_var.get()
+    assert len(app.undo_item_tree.get_children()) == 1
 
 
 def test_about_describes_current_beta_roadmap_safety_and_contact(tk_window):

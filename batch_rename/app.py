@@ -21,15 +21,19 @@ from .core import (
     ScanError,
     build_preview,
     execute,
+    preflight_undo,
     search_matches,
+    undo_operation,
 )
 from .examples import REGEX_EXAMPLES, RegexExample
 from .history import (
     OperationLog,
     OperationStatus,
     OperationStore,
+    UndoStatus,
     append_execution_record,
     create_operation_log,
+    filter_operations,
     finalize_operation,
 )
 from .models import (
@@ -43,6 +47,9 @@ from .models import (
     RenameCandidate,
     ScanOptions,
     ScanResult,
+    UndoCheckResult,
+    UndoRecord,
+    UndoResult,
 )
 from .preferences import (
     AppPreferences,
@@ -1794,6 +1801,19 @@ class BatchRenameApp:
             background=[("active", colors["accent_hover"]), ("disabled", colors["disabled"])],
             foreground=[("disabled", colors["surface_alt"])],
         )
+        style.configure(
+            "Danger.TButton",
+            background=colors["blocked"],
+            foreground=colors["on_accent"],
+            borderwidth=0,
+            padding=(12, 6),
+            font=("Microsoft YaHei UI", 9, "bold"),
+        )
+        style.map(
+            "Danger.TButton",
+            background=[("active", colors["warning"]), ("disabled", colors["disabled"])],
+            foreground=[("disabled", colors["surface_alt"])],
+        )
         style.configure("Secondary.TButton", background=colors["surface_alt"], foreground=colors["navy"])
         style.map("Secondary.TButton", background=[("active", colors["sidebar_active"])])
         style.configure(
@@ -2025,9 +2045,15 @@ class BatchRenameApp:
         )
         self.result_details_menu_index = 0
         self.feature_menu.add_separator()
-        self.feature_menu.add_command(label="撤回管理（开发中）", state="disabled")
+        self.feature_menu.add_command(
+            label="撤回管理",
+            command=lambda: self._show_history_center("undo"),
+        )
         self.undo_menu_index = self.feature_menu.index("end")
-        self.feature_menu.add_command(label="操作日志（开发中）", state="disabled")
+        self.feature_menu.add_command(
+            label="操作日志",
+            command=lambda: self._show_history_center("logs"),
+        )
         self.log_menu_index = self.feature_menu.index("end")
         self.top_menu.add_cascade(label="功能", menu=self.feature_menu)
 
@@ -3765,6 +3791,499 @@ class BatchRenameApp:
             build=build,
         )
 
+    def _show_history_center(self, page: str = "logs") -> None:
+        """打开单实例操作管理中心，并切换到指定功能页。"""
+
+        def build(window: tk.Toplevel) -> None:
+            window.minsize(860, 600)
+            window.configure(background=self.COLORS["background"])
+            outer = ttk.Frame(window, style="App.TFrame", padding=16)
+            outer.pack(fill="both", expand=True)
+            ttk.Label(
+                outer,
+                text="操作管理中心",
+                style="Title.TLabel",
+            ).pack(anchor="w")
+            ttk.Label(
+                outer,
+                text="查询每次批量改名的真实结果，并在整批安全检查通过后恢复原名称。",
+                style="Subtitle.TLabel",
+            ).pack(anchor="w", pady=(3, 12))
+            self.history_notebook = ttk.Notebook(outer)
+            self.history_notebook.pack(fill="both", expand=True)
+            self.history_undo_page = ttk.Frame(
+                self.history_notebook, style="Card.TFrame", padding=12
+            )
+            self.history_log_page = ttk.Frame(
+                self.history_notebook, style="Card.TFrame", padding=12
+            )
+            self.history_notebook.add(self.history_undo_page, text="撤回管理")
+            self.history_notebook.add(self.history_log_page, text="操作日志")
+            self._build_undo_manager_page(self.history_undo_page)
+            self._build_operation_log_page(self.history_log_page)
+
+        window = self.dialogs.open(
+            "history-center",
+            title="操作管理中心",
+            size=(980, 700),
+            build=build,
+        )
+        window.configure(background=self.COLORS["background"])
+        self._refresh_history_lists()
+        self.history_notebook.select(
+            self.history_undo_page if page == "undo" else self.history_log_page
+        )
+
+    def _build_operation_log_page(self, page: ttk.Frame) -> None:
+        page.columnconfigure(0, weight=1)
+        page.rowconfigure(1, weight=1)
+        filters = ttk.Frame(page, style="Card.TFrame")
+        filters.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        filters.columnconfigure(1, weight=1)
+        ttk.Label(filters, text="查询", style="Field.TLabel").grid(
+            row=0, column=0, sticky="w", padx=(0, 7)
+        )
+        self.history_query_var = tk.StringVar(self.root)
+        ttk.Entry(
+            filters,
+            textvariable=self.history_query_var,
+            style="Modern.TEntry",
+        ).grid(row=0, column=1, sticky="ew")
+        self.history_status_filter_var = tk.StringVar(self.root, value="全部状态")
+        ttk.Combobox(
+            filters,
+            textvariable=self.history_status_filter_var,
+            values=("全部状态",) + tuple(status.value for status in OperationStatus),
+            state="readonly",
+            width=12,
+            style="Modern.TCombobox",
+        ).grid(row=0, column=2, padx=(8, 0))
+        ttk.Button(
+            filters,
+            text="筛选",
+            style="Secondary.TButton",
+            command=self._refresh_history_lists,
+        ).grid(row=0, column=3, padx=(8, 0))
+
+        content = ttk.Panedwindow(page, orient="horizontal")
+        content.grid(row=1, column=0, sticky="nsew")
+        list_card = ttk.Frame(content, style="PanelSection.TFrame", padding=8)
+        detail_card = ttk.Frame(content, style="PanelSection.TFrame", padding=10)
+        content.add(list_card, weight=2)
+        content.add(detail_card, weight=3)
+        list_card.columnconfigure(0, weight=1)
+        list_card.rowconfigure(1, weight=1)
+        ttk.Label(
+            list_card, text="历史操作", style="PanelSectionTitle.TLabel"
+        ).grid(row=0, column=0, sticky="w", pady=(0, 6))
+        self.history_tree = ttk.Treeview(
+            list_card,
+            columns=("time", "root", "result", "status"),
+            show="headings",
+            height=14,
+        )
+        for column, title, width in (
+            ("time", "时间", 125),
+            ("root", "根目录", 170),
+            ("result", "结果", 105),
+            ("status", "状态", 90),
+        ):
+            self.history_tree.heading(column, text=title)
+            self.history_tree.column(column, width=width, minwidth=50, stretch=column == "root")
+        self.history_tree.grid(row=1, column=0, sticky="nsew")
+        history_scrollbar = ttk.Scrollbar(
+            list_card,
+            orient="vertical",
+            command=self.history_tree.yview,
+            style="Modern.Vertical.TScrollbar",
+        )
+        history_scrollbar.grid(row=1, column=1, sticky="ns")
+        self.history_tree.configure(yscrollcommand=history_scrollbar.set)
+        self.history_tree.bind(
+            "<<TreeviewSelect>>", lambda _event: self._show_selected_history_operation()
+        )
+
+        detail_card.columnconfigure(1, weight=1)
+        detail_card.rowconfigure(5, weight=1)
+        self.history_detail_vars = {
+            key: tk.StringVar(self.root)
+            for key in ("identifier", "root", "rule", "options", "summary")
+        }
+        for row, (key, title) in enumerate(
+            (
+                ("identifier", "操作标识"),
+                ("root", "根目录"),
+                ("rule", "规则"),
+                ("options", "范围"),
+                ("summary", "结果"),
+            )
+        ):
+            ttk.Label(detail_card, text=title, style="PanelSectionHint.TLabel").grid(
+                row=row, column=0, sticky="nw", padx=(0, 8), pady=3
+            )
+            ttk.Label(
+                detail_card,
+                textvariable=self.history_detail_vars[key],
+                style="PanelSectionTitle.TLabel" if key == "summary" else "PanelSectionHint.TLabel",
+                wraplength=460,
+                justify="left",
+            ).grid(row=row, column=1, sticky="ew", pady=3)
+        self.history_item_tree = ttk.Treeview(
+            detail_card,
+            columns=("kind", "source", "target", "execute", "undo", "detail"),
+            show="headings",
+            height=10,
+        )
+        for column, title, width in (
+            ("kind", "类型", 55),
+            ("source", "原路径", 150),
+            ("target", "新路径", 150),
+            ("execute", "执行", 60),
+            ("undo", "撤回", 70),
+            ("detail", "说明", 180),
+        ):
+            self.history_item_tree.heading(column, text=title)
+            self.history_item_tree.column(
+                column,
+                width=width,
+                minwidth=45,
+                stretch=column in {"source", "target", "detail"},
+            )
+        self.history_item_tree.grid(row=5, column=0, columnspan=2, sticky="nsew", pady=(10, 0))
+
+    def _build_undo_manager_page(self, page: ttk.Frame) -> None:
+        page.columnconfigure(0, weight=1)
+        page.rowconfigure(2, weight=1)
+        ttk.Label(
+            page,
+            text="撤回不会覆盖或删除现有项目。任一项目存在风险时，整批操作都不会开始。",
+            style="PanelExample.TLabel",
+            wraplength=840,
+        ).grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        self.undo_check_summary_var = tk.StringVar(
+            self.root, value="请选择一次操作，然后执行安全检查。"
+        )
+        ttk.Label(
+            page,
+            textvariable=self.undo_check_summary_var,
+            style="Hint.TLabel",
+        ).grid(row=1, column=0, sticky="w", pady=(0, 8))
+        content = ttk.Panedwindow(page, orient="horizontal")
+        content.grid(row=2, column=0, sticky="nsew")
+        operation_card = ttk.Frame(content, style="PanelSection.TFrame", padding=8)
+        check_card = ttk.Frame(content, style="PanelSection.TFrame", padding=10)
+        content.add(operation_card, weight=2)
+        content.add(check_card, weight=3)
+        operation_card.columnconfigure(0, weight=1)
+        operation_card.rowconfigure(1, weight=1)
+        ttk.Label(
+            operation_card, text="可追溯操作", style="PanelSectionTitle.TLabel"
+        ).grid(row=0, column=0, sticky="w", pady=(0, 6))
+        self.undo_operations_tree = ttk.Treeview(
+            operation_card,
+            columns=("time", "root", "count", "status"),
+            show="headings",
+            height=14,
+        )
+        for column, title, width in (
+            ("time", "时间", 120),
+            ("root", "根目录", 150),
+            ("count", "待恢复", 62),
+            ("status", "状态", 90),
+        ):
+            self.undo_operations_tree.heading(column, text=title)
+            self.undo_operations_tree.column(column, width=width, minwidth=50, stretch=column == "root")
+        self.undo_operations_tree.grid(row=1, column=0, sticky="nsew")
+        self.undo_operations_tree.bind(
+            "<<TreeviewSelect>>", lambda _event: self._show_selected_undo_operation()
+        )
+
+        check_card.columnconfigure(0, weight=1)
+        check_card.rowconfigure(1, weight=1)
+        ttk.Label(
+            check_card, text="项目检查", style="PanelSectionTitle.TLabel"
+        ).grid(row=0, column=0, sticky="w", pady=(0, 6))
+        self.undo_item_tree = ttk.Treeview(
+            check_card,
+            columns=("kind", "current", "restore", "state", "detail"),
+            show="headings",
+            height=13,
+        )
+        for column, title, width in (
+            ("kind", "类型", 55),
+            ("current", "当前路径", 160),
+            ("restore", "恢复路径", 160),
+            ("state", "检查", 65),
+            ("detail", "说明", 190),
+        ):
+            self.undo_item_tree.heading(column, text=title)
+            self.undo_item_tree.column(
+                column,
+                width=width,
+                minwidth=45,
+                stretch=column in {"current", "restore", "detail"},
+            )
+        self.undo_item_tree.grid(row=1, column=0, sticky="nsew")
+        actions = ttk.Frame(check_card, style="PanelSection.TFrame")
+        actions.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        actions.columnconfigure(0, weight=1)
+        self.undo_progress_var = tk.StringVar(self.root, value="等待安全检查")
+        ttk.Label(
+            actions, textvariable=self.undo_progress_var, style="PanelSectionHint.TLabel"
+        ).grid(row=0, column=0, sticky="w")
+        self.undo_check_button = ttk.Button(
+            actions,
+            text="安全检查",
+            style="Secondary.TButton",
+            command=self._check_selected_undo_operation,
+            state="disabled",
+        )
+        self.undo_check_button.grid(row=0, column=1, padx=(8, 0))
+        self.undo_execute_button = ttk.Button(
+            actions,
+            text="确认撤回",
+            style="Danger.TButton",
+            command=self._confirm_selected_undo_operation,
+            state="disabled",
+        )
+        self.undo_execute_button.grid(row=0, column=2, padx=(8, 0))
+        self._selected_undo_operation: OperationLog | None = None
+        self._latest_undo_check: tuple[str, str, UndoCheckResult] | None = None
+
+    def _refresh_history_lists(self) -> None:
+        if not hasattr(self, "history_tree"):
+            return
+        self._history_cache = self.operation_store.load_all()
+        status = self.history_status_filter_var.get()
+        filtered = filter_operations(
+            self._history_cache,
+            query=self.history_query_var.get(),
+            status=status,
+        )
+        self.history_tree.delete(*self.history_tree.get_children())
+        for operation in filtered:
+            self.history_tree.insert(
+                "",
+                "end",
+                iid=operation.identifier,
+                values=(
+                    operation.created_at.replace("T", " ")[:16],
+                    operation.root.name or str(operation.root),
+                    f"成 {operation.success_count} / 跳 {operation.skipped_count} / 失 {operation.failed_count}",
+                    operation.status.value,
+                ),
+            )
+        self.undo_operations_tree.delete(*self.undo_operations_tree.get_children())
+        for operation in self._history_cache:
+            if operation.status is OperationStatus.CORRUPT or operation.success_count == 0:
+                continue
+            self.undo_operations_tree.insert(
+                "",
+                "end",
+                iid=operation.identifier,
+                values=(
+                    operation.created_at.replace("T", " ")[:16],
+                    operation.root.name or str(operation.root),
+                    operation.pending_undo_count,
+                    operation.status.value,
+                ),
+            )
+
+    def _operation_from_cache(self, identifier: str) -> OperationLog | None:
+        return next(
+            (
+                operation
+                for operation in getattr(self, "_history_cache", ())
+                if operation.identifier == identifier
+            ),
+            None,
+        )
+
+    def _show_selected_history_operation(self) -> None:
+        selection = self.history_tree.selection()
+        if not selection:
+            return
+        operation = self._operation_from_cache(selection[0])
+        if operation is None:
+            return
+        depth = "全部层级" if operation.max_depth is None else f"最多 {operation.max_depth} 层"
+        objects = "文件夹和文件" if operation.include_dirs and operation.include_files else "文件夹" if operation.include_dirs else "文件"
+        self.history_detail_vars["identifier"].set(operation.identifier)
+        self.history_detail_vars["root"].set(str(operation.root))
+        self.history_detail_vars["rule"].set(
+            f"{operation.search} → {operation.replacement}"
+        )
+        self.history_detail_vars["options"].set(
+            f"{depth}；{objects}；{'正则表达式' if operation.use_regex else '普通文本'}"
+        )
+        self.history_detail_vars["summary"].set(
+            f"{operation.status.value}｜成功 {operation.success_count}｜跳过 {operation.skipped_count}｜失败 {operation.failed_count}｜已撤回 {operation.undone_count}"
+        )
+        self.history_item_tree.delete(*self.history_item_tree.get_children())
+        for index, item in enumerate(operation.items):
+            self.history_item_tree.insert(
+                "",
+                "end",
+                iid=f"history-item-{index}",
+                values=(
+                    item.kind.value,
+                    str(item.source),
+                    str(item.target),
+                    item.outcome,
+                    item.undo_status.value,
+                    item.undo_detail or item.detail,
+                ),
+            )
+
+    def _show_selected_undo_operation(self) -> None:
+        selection = self.undo_operations_tree.selection()
+        if not selection:
+            return
+        operation = self._operation_from_cache(selection[0])
+        if operation is None:
+            return
+        self._selected_undo_operation = operation
+        self._latest_undo_check = None
+        self.undo_execute_button.configure(state="disabled")
+        self.undo_check_button.configure(
+            state="normal" if operation.pending_undo_count else "disabled"
+        )
+        self.undo_check_summary_var.set(
+            f"{operation.created_at.replace('T', ' ')[:16]}｜{operation.root}｜待恢复 {operation.pending_undo_count} 项"
+        )
+        self.undo_progress_var.set("等待安全检查")
+        self.undo_item_tree.delete(*self.undo_item_tree.get_children())
+        for index, item in enumerate(operation.items):
+            if item.outcome != "成功":
+                continue
+            self.undo_item_tree.insert(
+                "",
+                "end",
+                iid=f"undo-item-{index}",
+                values=(
+                    item.kind.value,
+                    str(item.target),
+                    str(item.source),
+                    item.undo_status.value,
+                    item.undo_detail or "尚未检查",
+                ),
+            )
+
+    def _check_selected_undo_operation(self) -> None:
+        operation = self._selected_undo_operation
+        if operation is None or self._busy:
+            return
+        check = preflight_undo(operation)
+        self._latest_undo_check = (
+            operation.identifier,
+            operation.updated_at,
+            check,
+        )
+        self.undo_item_tree.delete(*self.undo_item_tree.get_children())
+        for index, item in enumerate(check.items):
+            self.undo_item_tree.insert(
+                "",
+                "end",
+                iid=f"undo-check-{index}",
+                values=(
+                    item.kind.value,
+                    str(item.current_source),
+                    str(item.restore_target),
+                    "通过" if item.safe else "阻止",
+                    item.detail,
+                ),
+            )
+        self.undo_check_summary_var.set(check.summary)
+        self.undo_progress_var.set("检查通过，可以确认撤回" if check.safe else "请先处理所有风险")
+        self.undo_execute_button.configure(state="normal" if check.safe else "disabled")
+
+    def _confirm_selected_undo_operation(self) -> None:
+        operation = self._selected_undo_operation
+        snapshot = self._latest_undo_check
+        if operation is None or snapshot is None or self._busy:
+            return
+        try:
+            current = self.operation_store.load(operation.identifier)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            messagebox.showerror("无法读取操作日志", str(exc), parent=self.root)
+            return
+        check = preflight_undo(current)
+        if (
+            snapshot[0] != current.identifier
+            or snapshot[1] != current.updated_at
+            or not check.safe
+        ):
+            self._selected_undo_operation = current
+            self._latest_undo_check = None
+            self.undo_execute_button.configure(state="disabled")
+            self.undo_check_summary_var.set("日志或磁盘状态已经变化，请重新执行安全检查。")
+            return
+        if not messagebox.askyesno(
+            "确认整批撤回",
+            f"根目录：{current.root}\n待恢复：{len(check.items)} 项\n\n"
+            "撤回不会覆盖现有项目；运行期间请勿移动相关文件或文件夹。是否继续？",
+            icon="warning",
+            parent=self.dialogs.windows.get("history-center", self.root),
+        ):
+            return
+        self._selected_undo_operation = current
+        self._set_busy(True)
+        self.undo_check_button.configure(state="disabled")
+        self.undo_execute_button.configure(state="disabled")
+        self.undo_progress_var.set(f"准备恢复 0/{len(check.items)}")
+        threading.Thread(
+            target=self._undo_worker,
+            args=(current,),
+            daemon=True,
+        ).start()
+
+    def _undo_worker(self, operation: OperationLog) -> None:
+        try:
+            result = undo_operation(
+                operation,
+                save=self.operation_store.save,
+                progress=lambda current, total, record: self._messages.put(
+                    ("undo_progress", current, total, record)
+                ),
+            )
+        except Exception as exc:
+            self._messages.put(("undo_error", str(exc)))
+        else:
+            self._messages.put(("undo_done", result, operation))
+
+    def _handle_undo_progress(
+        self, current: int, total: int, record: UndoRecord
+    ) -> None:
+        if hasattr(self, "undo_progress_var"):
+            self.undo_progress_var.set(
+                f"{current}/{total}  {record.outcome}：{record.source.name}"
+            )
+
+    def _handle_undo_done(
+        self, result: UndoResult, operation: OperationLog
+    ) -> None:
+        self._set_busy(False)
+        self._last_operation = operation
+        if hasattr(self, "history_tree"):
+            self._refresh_history_lists()
+            rows = self.undo_operations_tree.get_children()
+            if operation.identifier in rows:
+                self.undo_operations_tree.selection_set(operation.identifier)
+                self._show_selected_undo_operation()
+            self.undo_progress_var.set(
+                f"撤回结束：成功 {result.succeeded}，失败 {result.failed}"
+            )
+        self.status_var.set(
+            f"撤回结束：成功 {result.succeeded} 项，失败 {result.failed} 项。"
+        )
+        level = messagebox.showinfo if result.failed == 0 else messagebox.showwarning
+        level(
+            "撤回完成" if result.failed == 0 else "撤回未全部完成",
+            f"成功：{result.succeeded} 项\n失败：{result.failed} 项\n\n"
+            "操作日志已经更新。",
+            parent=self.dialogs.windows.get("history-center", self.root),
+        )
+
     def _sync_command_states(self) -> None:
         if not hasattr(self, "preview_button"):
             return
@@ -3982,6 +4501,20 @@ class BatchRenameApp:
                         f"{message[1]}",
                         parent=self.root,
                     )
+                elif kind == "undo_progress":
+                    self._handle_undo_progress(message[1], message[2], message[3])
+                elif kind == "undo_done":
+                    self._handle_undo_done(message[1], message[2])
+                elif kind == "undo_error":
+                    self._set_busy(False)
+                    if hasattr(self, "undo_progress_var"):
+                        self.undo_progress_var.set(f"撤回中断：{message[1]}")
+                    self.status_var.set(f"撤回中断：{message[1]}")
+                    messagebox.showerror(
+                        "撤回中断",
+                        f"撤回已停止，请查看操作日志后重试。\n\n{message[1]}",
+                        parent=self.dialogs.windows.get("history-center", self.root),
+                    )
                 elif kind == "error":
                     self.progress.stop()
                     self.progress.configure(mode="determinate", value=0)
@@ -4008,6 +4541,16 @@ class BatchRenameApp:
             state="disabled" if busy else "readonly"
         )
         self.regex_template_list.configure(state=state)
+        if hasattr(self, "undo_check_button"):
+            self.undo_check_button.configure(state="disabled" if busy else "normal")
+            self.undo_execute_button.configure(state="disabled")
+        if hasattr(self, "feature_menu"):
+            self.feature_menu.entryconfigure(
+                self.undo_menu_index, state="disabled" if busy else "normal"
+            )
+            self.feature_menu.entryconfigure(
+                self.log_menu_index, state="disabled" if busy else "normal"
+            )
         self.regex_apply_button.configure(state=state)
         if busy:
             self.execute_button.configure(state="disabled")
