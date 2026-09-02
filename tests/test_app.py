@@ -2,7 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import time
 import tkinter as tk
-from tkinter import font as tkfont, ttk
+from tkinter import ttk
 
 import main
 import pytest
@@ -11,6 +11,7 @@ from batch_rename.app import (
     BatchRenameApp,
     ManagedDialogs,
     _tree_cell_content,
+    calculate_result_column_widths,
     calculate_window_layout,
     centered_dialog_geometry,
     layout_mode_for_size,
@@ -117,6 +118,45 @@ def test_layout_mode_keeps_portrait_windows_compact_even_when_they_are_wide(
     size, expected
 ):
     assert layout_mode_for_size(*size) == expected
+
+
+@pytest.mark.parametrize(
+    ("total_width", "mode"),
+    [(720, "compact"), (980, "standard"), (1440, "spacious")],
+)
+def test_result_column_widths_keep_icon_columns_narrow_and_names_flexible(
+    total_width, mode
+):
+    widths = calculate_result_column_widths(total_width, mode)
+
+    assert widths["kind"] == 44
+    assert widths["status"] == 48
+    assert widths["detail"] == 44
+    assert widths["new"] > widths["old"] > widths["parent"]
+    assert sum(widths.values()) == total_width
+    assert all(width > 0 for width in widths.values())
+
+
+def test_result_column_widths_scale_elastic_columns_below_preferred_minimums():
+    widths = calculate_result_column_widths(420, "compact")
+
+    assert sum(widths.values()) == 420
+    assert widths["new"] > widths["old"] > widths["parent"] > 0
+
+
+def test_app_applies_calculated_result_widths_without_rebuilding_the_tree(tk_window):
+    app = BatchRenameApp(
+        tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
+    )
+    result_tree = app.result_tree
+
+    app._apply_result_column_widths(980)
+
+    assert app.result_tree is result_tree
+    assert {
+        column: int(app.result_tree.column(column, "width"))
+        for column in app.result_tree["columns"]
+    } == calculate_result_column_widths(980, app.current_layout_mode)
 
 
 @pytest.mark.parametrize(
@@ -513,15 +553,11 @@ def test_default_layout_fits_960_by_680_and_expands_the_result_area(tk_window):
 
 
 @pytest.mark.parametrize(
-    ("width", "mode", "rail_width", "column_widths"),
-    [
-        (960, "compact", 64, {"kind": 72, "parent": 96, "old": 88, "new": 96, "status": 72, "detail": 88}),
-        (1280, "standard", 270, {"kind": 72, "parent": 135, "old": 100, "new": 110, "status": 72, "detail": 110}),
-        (1600, "spacious", 300, {"kind": 72, "parent": 250, "old": 180, "new": 190, "status": 96, "detail": 220}),
-    ],
+    ("width", "mode", "rail_width"),
+    [(960, "compact", 64), (1280, "standard", 270), (1600, "spacious", 300)],
 )
 def test_responsive_modes_resize_the_rail_and_apply_result_column_policies(
-    tk_window, width, mode, rail_width, column_widths
+    tk_window, width, mode, rail_width
 ):
     app = BatchRenameApp(
         tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
@@ -534,24 +570,19 @@ def test_responsive_modes_resize_the_rail_and_apply_result_column_policies(
     assert {
         column: int(app.result_tree.column(column, "width"))
         for column in app.result_tree["columns"]
-    } == column_widths
+    } == calculate_result_column_widths(width - rail_width - 64, mode)
     for essential_column in ("kind", "old", "new", "status"):
         assert int(app.result_tree.column(essential_column, "width")) > 0
 
 
-def test_type_column_fits_the_complete_directory_label_at_high_dpi(tk_window):
+def test_type_column_keeps_a_fixed_compact_icon_width_at_high_dpi(tk_window):
     previous_scaling = float(tk_window.tk.call("tk", "scaling"))
     try:
         tk_window.tk.call("tk", "scaling", 2.0)
         app = BatchRenameApp(
             tk_window, work_area_provider=lambda _root: (0, 0, 1920, 1080)
         )
-        tree_font = tkfont.Font(
-            root=tk_window,
-            font=ttk.Style(tk_window).lookup("Treeview", "font"),
-        )
-
-        assert int(app.result_tree.column("kind", "width")) >= tree_font.measure("文件夹") + 16
+        assert int(app.result_tree.column("kind", "width")) == 44
     finally:
         tk_window.tk.call("tk", "scaling", previous_scaling)
 

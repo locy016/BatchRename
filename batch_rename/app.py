@@ -39,6 +39,50 @@ from .models import (
 
 MIN_WINDOW_WIDTH = 960
 MIN_WINDOW_HEIGHT = 680
+RESULT_FIXED_COLUMN_WIDTHS = {"kind": 44, "status": 48, "detail": 44}
+RESULT_ELASTIC_MINIMUMS = {
+    "compact": {"parent": 90, "old": 130, "new": 150},
+    "standard": {"parent": 120, "old": 160, "new": 180},
+    "spacious": {"parent": 160, "old": 220, "new": 250},
+}
+RESULT_ELASTIC_RATIOS = {"parent": 0.26, "old": 0.34, "new": 0.40}
+
+
+def calculate_result_column_widths(total_width: int, mode: str) -> dict[str, int]:
+    """按可用宽度返回固定图标列和弹性文字列的精确宽度。"""
+
+    fixed_total = sum(RESULT_FIXED_COLUMN_WIDTHS.values())
+    elastic_total = max(3, int(total_width) - fixed_total)
+    preferred = RESULT_ELASTIC_MINIMUMS.get(
+        mode, RESULT_ELASTIC_MINIMUMS["standard"]
+    )
+    preferred_total = sum(preferred.values())
+    elastic: dict[str, int] = {}
+    if elastic_total >= preferred_total:
+        extra = elastic_total - preferred_total
+        elastic["parent"] = preferred["parent"] + round(
+            extra * RESULT_ELASTIC_RATIOS["parent"]
+        )
+        elastic["old"] = preferred["old"] + round(
+            extra * RESULT_ELASTIC_RATIOS["old"]
+        )
+        elastic["new"] = elastic_total - elastic["parent"] - elastic["old"]
+    else:
+        elastic["parent"] = max(
+            1, elastic_total * preferred["parent"] // preferred_total
+        )
+        elastic["old"] = max(
+            1, elastic_total * preferred["old"] // preferred_total
+        )
+        elastic["new"] = elastic_total - elastic["parent"] - elastic["old"]
+    return {
+        "kind": RESULT_FIXED_COLUMN_WIDTHS["kind"],
+        "parent": elastic["parent"],
+        "old": elastic["old"],
+        "new": elastic["new"],
+        "status": RESULT_FIXED_COLUMN_WIDTHS["status"],
+        "detail": RESULT_FIXED_COLUMN_WIDTHS["detail"],
+    }
 
 
 def layout_mode_for_width(width: int) -> str:
@@ -616,32 +660,6 @@ class BatchRenameApp:
     POLL_INTERVAL_MS = 80
     RESPONSIVE_DELAY_MS = 120
     RAIL_WIDTHS = {"compact": 64, "standard": 270, "spacious": 300}
-    RESULT_COLUMN_POLICIES = {
-        "compact": {
-            "kind": 72,
-            "parent": 96,
-            "old": 88,
-            "new": 96,
-            "status": 72,
-            "detail": 88,
-        },
-        "standard": {
-            "kind": 72,
-            "parent": 135,
-            "old": 100,
-            "new": 110,
-            "status": 72,
-            "detail": 110,
-        },
-        "spacious": {
-            "kind": 72,
-            "parent": 250,
-            "old": 180,
-            "new": 190,
-            "status": 96,
-            "detail": 220,
-        },
-    }
     COLORS = {
         "background": "#F3F6FA",
         "card": "#FFFFFF",
@@ -696,6 +714,7 @@ class BatchRenameApp:
         self._last_execution: ExecutionResult | None = None
         self._responsive_after_id: str | None = None
         self._last_responsive_size: tuple[int, int] | None = None
+        self._last_result_width: tuple[int, str] | None = None
         self.current_layout_mode = self.initial_window_layout.layout_mode
         self._app_icon: tk.PhotoImage | None = None
         self._header_icon: tk.PhotoImage | None = None
@@ -1158,11 +1177,40 @@ class BatchRenameApp:
             self.compact_navigation.grid_remove()
             self.workflow_rail.configure(width=self.RAIL_WIDTHS[mode])
             self.workflow_rail.grid(row=0, column=0, sticky="ns", padx=(0, 7))
-        for column, column_width in self.RESULT_COLUMN_POLICIES[mode].items():
-            min_width = column_width if column == "kind" else min(72, column_width)
-            self.result_tree.column(column, width=column_width, minwidth=min_width)
-        self.new_name_overlay.schedule()
+        measured_tree_width = self.result_tree.winfo_width()
+        estimated_tree_width = max(
+            320,
+            width - self.RAIL_WIDTHS[mode] - 64,
+        )
+        self._apply_result_column_widths(
+            measured_tree_width if measured_tree_width > 1 else estimated_tree_width
+        )
         self._position_active_tool_panel()
+
+    def _apply_result_column_widths(self, total_width: int) -> None:
+        """按结果表当前可用宽度原地更新六列，不重建任何行。"""
+
+        key = (max(1, int(total_width)), self.current_layout_mode)
+        if self._last_result_width == key:
+            return
+        self._last_result_width = key
+        widths = calculate_result_column_widths(key[0], key[1])
+        for column, column_width in widths.items():
+            self.result_tree.column(
+                column,
+                width=column_width,
+                minwidth=column_width if column in RESULT_FIXED_COLUMN_WIDTHS else 1,
+                stretch=False,
+            )
+        self.new_name_overlay.schedule()
+
+    def _on_result_tree_configure(self, event: tk.Event) -> None:
+        width = max(1, int(event.width))
+        previous = self._last_result_width
+        if previous is not None and previous[1] == self.current_layout_mode:
+            if abs(previous[0] - width) < 4:
+                return
+        self._apply_result_column_widths(width)
 
     def _toggle_workflow_drawer(self) -> None:
         """在紧凑模式下展开或收起原有工作流控件。"""
@@ -1821,21 +1869,14 @@ class BatchRenameApp:
             "status": "状态",
             "detail": "说明",
         }
-        widths = {
-            "kind": 52,
-            "parent": 135,
-            "old": 100,
-            "new": 110,
-            "status": 72,
-            "detail": 110,
-        }
+        widths = calculate_result_column_widths(700, "standard")
         for column in columns:
             tree.heading(column, text=headings[column])
             tree.column(
                 column,
                 width=widths[column],
-                minwidth=52 if column == "kind" else 72,
-                stretch=column in {"old", "new", "parent", "detail"},
+                minwidth=widths[column] if column in RESULT_FIXED_COLUMN_WIDTHS else 1,
+                stretch=False,
             )
         self.new_name_overlay = TreeColumnTextOverlay(
             tree,
@@ -1844,6 +1885,7 @@ class BatchRenameApp:
             background=self.COLORS["card"],
             selected_background="#D9EAF2",
         )
+        tree.bind("<Configure>", self._on_result_tree_configure, add="+")
 
         def scroll_vertical(*args: str) -> None:
             tree.yview(*args)
