@@ -13,11 +13,13 @@ from batch_rename.app import (
     _tree_cell_content,
     calculate_result_column_widths,
     calculate_window_layout,
+    clamp_floating_panel_position,
     centered_dialog_geometry,
     directory_inventory_view,
     directory_scope_text,
     layout_mode_for_size,
     layout_mode_for_width,
+    floating_panel_position,
     result_icon_spec,
     result_parent_text,
     sorted_preview_items,
@@ -93,12 +95,29 @@ def test_app_loads_requested_appearance_without_touching_real_user_settings(
         preferences_path=preferences_path,
         system_light_provider=lambda: True,
     )
-
     assert app.requested_appearance == "dark"
     assert app.resolved_appearance == "dark"
     assert app.preferences_path == preferences_path
     assert str(app.file_menu.cget("background")) == theme_palette("dark")["card"]
     assert app.regex_template_list.cget("background") == theme_palette("dark")["input"]
+
+
+def test_floating_panel_position_aligns_with_trigger_and_stays_in_workspace():
+    assert floating_panel_position(
+        workspace_size=(1100, 700),
+        panel_size=(620, 460),
+        trigger_bounds=(12, 640, 280, 36),
+        margin=12,
+    ) == (304, 228)
+
+
+def test_floating_panel_position_clamps_dragged_coordinates():
+    assert clamp_floating_panel_position(
+        requested=(-40, 900),
+        workspace_size=(1100, 700),
+        panel_size=(620, 460),
+        margin=12,
+    ) == (12, 228)
 
 
 def test_modern_theme_palettes_define_complete_light_and_dark_tokens():

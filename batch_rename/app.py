@@ -216,6 +216,48 @@ def layout_mode_for_width(width: int) -> str:
     return "compact"
 
 
+def clamp_floating_panel_position(
+    *,
+    requested: tuple[int, int],
+    workspace_size: tuple[int, int],
+    panel_size: tuple[int, int],
+    margin: int = 12,
+) -> tuple[int, int]:
+    """把浮动面板坐标限制在当前主内容区的安全边距内。"""
+
+    workspace_width, workspace_height = workspace_size
+    panel_width, panel_height = panel_size
+    requested_x, requested_y = requested
+    maximum_x = max(margin, workspace_width - panel_width - margin)
+    maximum_y = max(margin, workspace_height - panel_height - margin)
+    return (
+        min(maximum_x, max(margin, requested_x)),
+        min(maximum_y, max(margin, requested_y)),
+    )
+
+
+def floating_panel_position(
+    *,
+    workspace_size: tuple[int, int],
+    panel_size: tuple[int, int],
+    trigger_bounds: tuple[int, int, int, int],
+    margin: int = 12,
+) -> tuple[int, int]:
+    """让浮动面板从入口右侧打开，并让两者底部保持视觉联系。"""
+
+    trigger_x, trigger_y, trigger_width, trigger_height = trigger_bounds
+    requested = (
+        trigger_x + trigger_width + margin,
+        trigger_y + trigger_height - panel_size[1] + margin,
+    )
+    return clamp_floating_panel_position(
+        requested=requested,
+        workspace_size=workspace_size,
+        panel_size=panel_size,
+        margin=margin,
+    )
+
+
 def layout_mode_for_size(width: int, height: int) -> str:
     """根据客户区尺寸选择布局，竖向窗口始终使用紧凑工作台。"""
 
