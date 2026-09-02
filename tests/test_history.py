@@ -164,6 +164,7 @@ def test_execution_journal_records_rule_progress_and_final_state(tmp_path):
     assert journal.replacement == "归档"
     assert journal.status is OperationStatus.COMPLETED
     assert journal.items[0].outcome == "成功"
+    assert journal.items[0].execution_index == 1
     assert journal.items[0].undo_status is UndoStatus.PENDING
 
 

@@ -46,6 +46,7 @@ class OperationItem:
     kind: ItemKind
     outcome: str = "待执行"
     detail: str = ""
+    execution_index: int | None = None
     undo_status: UndoStatus = UndoStatus.NOT_APPLICABLE
     undo_detail: str = ""
 
@@ -56,6 +57,7 @@ class OperationItem:
             "kind": self.kind.value,
             "outcome": self.outcome,
             "detail": self.detail,
+            "execution_index": self.execution_index,
             "undo_status": self.undo_status.value,
             "undo_detail": self.undo_detail,
         }
@@ -68,6 +70,11 @@ class OperationItem:
             kind=ItemKind(str(payload["kind"])),
             outcome=str(payload.get("outcome", "待执行")),
             detail=str(payload.get("detail", "")),
+            execution_index=(
+                None
+                if payload.get("execution_index") is None
+                else int(payload["execution_index"])
+            ),
             undo_status=UndoStatus(
                 str(payload.get("undo_status", UndoStatus.NOT_APPLICABLE.value))
             ),
@@ -239,6 +246,17 @@ def append_execution_record(
         operation.items.append(item)
     item.outcome = record.outcome
     item.detail = record.detail
+    if item.execution_index is None:
+        item.execution_index = (
+            max(
+                (
+                    candidate.execution_index or 0
+                    for candidate in operation.items
+                ),
+                default=0,
+            )
+            + 1
+        )
     item.undo_status = (
         UndoStatus.PENDING
         if record.outcome == "成功"

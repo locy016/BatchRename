@@ -7,7 +7,7 @@ import re
 import uuid
 from collections import defaultdict
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 from .models import (
     CandidateStatus,
@@ -21,7 +21,12 @@ from .models import (
     RenameCandidate,
     ScanOptions,
     ScanResult,
+    UndoCheckItem,
+    UndoCheckResult,
+    UndoRecord,
+    UndoResult,
 )
+from .history import OperationLog, OperationStatus, UndoStatus
 
 
 class RuleError(ValueError):
@@ -385,4 +390,190 @@ def execute(
         if progress is not None:
             progress(current, total, record)
 
+    return result
+
+
+def _operation_item_order(operation: OperationLog) -> list[tuple[int, object]]:
+    """返回尚待撤回的成功项目，保持真实执行顺序的逆序。"""
+
+    pending = [
+        (index, item)
+        for index, item in enumerate(operation.items)
+        if item.outcome == "成功" and item.undo_status is not UndoStatus.UNDONE
+    ]
+    return sorted(
+        pending,
+        key=lambda pair: (
+            pair[1].execution_index
+            if pair[1].execution_index is not None
+            else pair[0] + 1
+        ),
+        reverse=True,
+    )
+
+
+def _path_after_later_directory_renames(
+    operation: OperationLog,
+    item_index: int,
+    path: Path,
+) -> Path:
+    """推导某项目在完整正向操作结束后的当前路径。"""
+
+    item = operation.items[item_index]
+    execution_index = item.execution_index or item_index + 1
+    later_directories = sorted(
+        (
+            (index, candidate)
+            for index, candidate in enumerate(operation.items)
+            if candidate.outcome == "成功"
+            and candidate.kind is ItemKind.DIRECTORY
+            and candidate.undo_status is not UndoStatus.UNDONE
+            and (candidate.execution_index or index + 1) > execution_index
+        ),
+        key=lambda pair: pair[1].execution_index or pair[0] + 1,
+    )
+    current = path
+    for _index, directory in later_directories:
+        try:
+            relative = current.relative_to(directory.source)
+        except ValueError:
+            continue
+        current = directory.target / relative
+    return current
+
+
+def preflight_undo(operation: OperationLog) -> UndoCheckResult:
+    """只读检查整批撤回；任一风险都会使整个检查失败。"""
+
+    ordered = _operation_item_order(operation)
+    if operation.status is OperationStatus.CORRUPT:
+        return UndoCheckResult(
+            operation.identifier,
+            summary="操作日志已损坏，无法撤回。",
+        )
+    if not ordered:
+        return UndoCheckResult(
+            operation.identifier,
+            summary="这次操作已经撤回，或没有成功改名的项目。",
+        )
+
+    checks: list[UndoCheckItem] = []
+    for item_index, item in ordered:
+        current_source = _path_after_later_directory_renames(
+            operation, item_index, item.target
+        )
+        restore_target = item.source
+        if not current_source.exists():
+            safe = False
+            detail = f"当前名称不存在：{current_source}"
+        elif item.kind is ItemKind.DIRECTORY and not current_source.is_dir():
+            safe = False
+            detail = "当前路径不再是文件夹，不能安全恢复。"
+        elif item.kind is ItemKind.FILE and not current_source.is_file():
+            safe = False
+            detail = "当前路径不再是文件，不能安全恢复。"
+        elif restore_target.exists() and _path_key(restore_target) != _path_key(
+            current_source
+        ):
+            safe = False
+            detail = f"原名称已被其他项目占用：{restore_target}"
+        else:
+            safe = True
+            detail = "可以恢复原名称。"
+        checks.append(
+            UndoCheckItem(
+                item_index=item_index,
+                current_source=current_source,
+                restore_target=restore_target,
+                kind=item.kind,
+                safe=safe,
+                detail=detail,
+            )
+        )
+    unsafe_count = sum(not item.safe for item in checks)
+    summary = (
+        f"检查通过，可撤回 {len(checks)} 项。"
+        if unsafe_count == 0
+        else f"发现 {unsafe_count} 项风险，整批撤回未获准。"
+    )
+    return UndoCheckResult(operation.identifier, checks, summary)
+
+
+def undo_operation(
+    operation: OperationLog,
+    *,
+    progress: Callable[[int, int, UndoRecord], None] | None = None,
+    save: Callable[[OperationLog], object] | None = None,
+) -> UndoResult:
+    """在整批预检通过后，按原执行顺序的逆序恢复名称。"""
+
+    check = preflight_undo(operation)
+    result = UndoResult(check=check)
+    if not check.safe:
+        if operation.status is not OperationStatus.UNDONE:
+            operation.status = OperationStatus.UNDO_CHECK_FAILED
+            operation.error = check.summary
+            if save is not None:
+                save(operation)
+        return result
+
+    operation.status = OperationStatus.UNDOING
+    operation.error = ""
+    if save is not None:
+        save(operation)
+    total = len(check.items)
+    for current, check_item in enumerate(check.items, start=1):
+        item = operation.items[check_item.item_index]
+        source = item.target
+        target = item.source
+        try:
+            if source != target and _path_key(source) == _path_key(target):
+                _rename_case_only(source, target)
+            else:
+                source.rename(target)
+            item.undo_status = UndoStatus.UNDONE
+            item.undo_detail = "已恢复原名称"
+            record = UndoRecord(
+                source=source,
+                target=target,
+                kind=item.kind,
+                outcome="成功",
+                detail=item.undo_detail,
+            )
+            result.records.append(record)
+            if save is not None:
+                save(operation)
+            if progress is not None:
+                progress(current, total, record)
+        except Exception as exc:
+            item.undo_status = UndoStatus.FAILED
+            item.undo_detail = str(exc)
+            operation.status = OperationStatus.PARTIALLY_UNDONE
+            operation.error = f"撤回在第 {current} 项停止：{exc}"
+            record = UndoRecord(
+                source=source,
+                target=target,
+                kind=item.kind,
+                outcome="失败",
+                detail=str(exc),
+            )
+            result.records.append(record)
+            if save is not None:
+                try:
+                    save(operation)
+                except Exception:
+                    pass
+            if progress is not None:
+                progress(current, total, record)
+            break
+
+    if result.failed == 0:
+        operation.status = (
+            OperationStatus.UNDONE
+            if operation.pending_undo_count == 0
+            else OperationStatus.PARTIALLY_UNDONE
+        )
+        operation.error = ""
+        if save is not None:
+            save(operation)
     return result

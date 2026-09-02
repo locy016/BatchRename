@@ -115,4 +115,48 @@ class ExecutionResult:
         return sum(record.outcome == "失败" for record in self.records)
 
 
+@dataclass(frozen=True, slots=True)
+class UndoCheckItem:
+    item_index: int
+    current_source: Path
+    restore_target: Path
+    kind: ItemKind
+    safe: bool
+    detail: str
+
+
+@dataclass(slots=True)
+class UndoCheckResult:
+    operation_identifier: str
+    items: list[UndoCheckItem] = field(default_factory=list)
+    summary: str = ""
+
+    @property
+    def safe(self) -> bool:
+        return bool(self.items) and all(item.safe for item in self.items)
+
+
+@dataclass(frozen=True, slots=True)
+class UndoRecord:
+    source: Path
+    target: Path
+    kind: ItemKind
+    outcome: str
+    detail: str = ""
+
+
+@dataclass(slots=True)
+class UndoResult:
+    check: UndoCheckResult
+    records: list[UndoRecord] = field(default_factory=list)
+
+    @property
+    def succeeded(self) -> int:
+        return sum(record.outcome == "成功" for record in self.records)
+
+    @property
+    def failed(self) -> int:
+        return sum(record.outcome == "失败" for record in self.records)
+
+
 ProgressCallback = Callable[[int, int, ExecutionRecord], None]
