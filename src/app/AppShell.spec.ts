@@ -1,4 +1,6 @@
 import { mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
+import ElementPlus from 'element-plus'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { describe, expect, it } from 'vitest'
 
@@ -17,7 +19,7 @@ describe('AppShell', () => {
     await router.push('/rename')
     await router.isReady()
 
-    const wrapper = mount(AppShell, { global: { plugins: [router] } })
+    const wrapper = mount(AppShell, { global: { plugins: [createPinia(), router, ElementPlus] } })
 
     expect(wrapper.get('[data-testid="product-title"]').text()).toContain('批量重命名')
     expect(wrapper.findAll('nav a').map((link) => link.attributes('href'))).toEqual([

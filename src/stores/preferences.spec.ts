@@ -1,0 +1,1 @@
+import{createPinia,setActivePinia}from'pinia';import{describe,expect,it}from'vitest';import{usePreferencesStore}from'./preferences';describe('外观偏好',()=>{it('默认跟随系统且切换不影响工作流',()=>{setActivePinia(createPinia());expect(usePreferencesStore().appearance).toBe('system')})})

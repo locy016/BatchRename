@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
+import { usePreferencesStore, type Appearance } from '../stores/preferences'
+const preferences = usePreferencesStore()
+onMounted(() => preferences.load())
 
 const navigation = [
   { to: '/rename', label: '重命名' },
@@ -18,6 +22,7 @@ const navigation = [
           {{ item.label }}
         </RouterLink>
       </nav>
+      <el-select class="theme-select" :model-value="preferences.appearance" aria-label="界面风格" @update:model-value="preferences.setAppearance($event as Appearance)"><el-option label="跟随系统" value="system"/><el-option label="浅色" value="light"/><el-option label="深色" value="dark"/></el-select>
     </header>
     <main class="app-main">
       <RouterView />
