@@ -1,0 +1,1 @@
+import{describe,expect,it}from'vitest';import{regexTemplates}from'./regexTemplates';describe('正则模板',()=>{it('提供十五个可直接应用的经典方案',()=>{expect(regexTemplates).toHaveLength(15);expect(regexTemplates.every(v=>v.search&&v.before&&v.after)).toBe(true)})})
