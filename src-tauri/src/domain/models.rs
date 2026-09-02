@@ -105,6 +105,25 @@ pub struct PreviewPage {
     pub warnings: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutionProgress {
+    pub current: usize,
+    pub total: usize,
+    pub relative_path: PathBuf,
+    pub outcome: String,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutionSummary {
+    pub operation_id: String,
+    pub succeeded: usize,
+    pub skipped: usize,
+    pub failed: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OperationStatus {
     #[serde(rename = "准备中")]

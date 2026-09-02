@@ -15,7 +15,8 @@ pub fn run() {
             commands::preview::build_rename_preview,
             commands::preview::get_preview_page,
             commands::history::query_operations,
-            commands::history::get_operation
+            commands::history::get_operation,
+            commands::execute::execute_rename
         ])
         .run(tauri::generate_context!())
         .expect("批量重命名启动失败");
