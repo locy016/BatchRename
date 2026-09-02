@@ -621,6 +621,70 @@ def test_bottom_tool_panels_are_mutually_exclusive_and_collapsible(tk_window):
     assert app.templates_panel.winfo_manager() == ""
 
 
+@pytest.mark.parametrize(
+    ("size", "mode"),
+    [((1120, 720), "standard"), ((1600, 900), "spacious"), ((1000, 900), "compact")],
+)
+def test_tool_work_panels_have_roomy_headers_and_stay_inside_workspace(
+    tk_window, size, mode
+):
+    app = BatchRenameApp(tk_window)
+    width, height = size
+    tk_window.geometry(f"{width}x{height}+0+0")
+    tk_window.deiconify()
+    tk_window.update()
+    app._apply_responsive_layout(width, height)
+
+    app._toggle_tool_panel("templates")
+    tk_window.update()
+
+    assert app.current_layout_mode == mode
+    assert app.templates_panel_title.cget("text") == "常用正则模板"
+    assert "一键应用" in app.templates_panel_helper.cget("text")
+    assert app.templates_panel_close.cget("text") == "关闭"
+    assert app.templates_panel.winfo_width() >= min(600, app.body_frame.winfo_width() - 96)
+    assert app.templates_panel.winfo_height() >= min(420, app.body_frame.winfo_height() - 24)
+    assert app.templates_panel.winfo_x() >= 0
+    assert app.templates_panel.winfo_y() >= 0
+    assert app.templates_panel.winfo_x() + app.templates_panel.winfo_width() <= app.body_frame.winfo_width()
+    assert app.templates_panel.winfo_y() + app.templates_panel.winfo_height() <= app.body_frame.winfo_height()
+    assert app.regex_template_browser.winfo_width() >= app.templates_panel.winfo_width() * 0.35
+    assert app.regex_template_details.winfo_width() >= app.templates_panel.winfo_width() * 0.50
+
+    app.templates_panel_close.invoke()
+    assert app.active_tool_panel is None
+
+
+def test_settings_panel_uses_three_clear_semantic_groups(tk_window):
+    app = BatchRenameApp(tk_window)
+    tk_window.deiconify()
+    tk_window.update()
+
+    app._toggle_tool_panel("settings")
+    tk_window.update()
+
+    assert app.settings_panel_title.cget("text") == "扫描与预览设置"
+    assert "当前规则" in app.settings_panel_helper.cget("text")
+    assert tuple(label.cget("text") for label in app.settings_group_labels) == (
+        "扫描范围",
+        "处理对象",
+        "名称保护",
+    )
+    group_rectangles = [
+        (
+            group.winfo_x(),
+            group.winfo_y(),
+            group.winfo_x() + group.winfo_width(),
+            group.winfo_y() + group.winfo_height(),
+        )
+        for group in app.settings_groups
+    ]
+    assert all(
+        first[3] <= second[1]
+        for first, second in zip(group_rectangles, group_rectangles[1:])
+    )
+
+
 def test_open_template_panel_is_locked_during_background_work(tk_window):
     app = BatchRenameApp(tk_window)
     app._toggle_tool_panel("templates")

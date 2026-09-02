@@ -1305,6 +1305,40 @@ class BatchRenameApp:
         )
         style.configure("Header.TFrame", background=colors["navy"])
         style.configure("Card.TFrame", background=colors["card"], relief="flat")
+        style.configure("PanelSection.TFrame", background=colors["surface_alt"], relief="flat")
+        style.configure(
+            "PanelSectionTitle.TLabel",
+            background=colors["surface_alt"],
+            foreground=colors["navy"],
+            font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.configure(
+            "PanelSectionHint.TLabel",
+            background=colors["surface_alt"],
+            foreground=colors["muted"],
+            font=("Microsoft YaHei UI", 8),
+        )
+        style.configure(
+            "PanelExample.TLabel",
+            background=colors["surface_alt"],
+            foreground=colors["ready"],
+            font=("Microsoft YaHei UI", 9, "bold"),
+            padding=(9, 7),
+        )
+        for option_style in ("PanelSection.TRadiobutton", "PanelSection.TCheckbutton"):
+            style.configure(
+                option_style,
+                background=colors["surface_alt"],
+                foreground=colors["text"],
+                padding=(4, 3),
+                font=("Microsoft YaHei UI", 9),
+                focuscolor=colors["accent"],
+            )
+            style.map(
+                option_style,
+                background=[("active", colors["selection"]), ("disabled", colors["surface_alt"])],
+                foreground=[("disabled", colors["disabled"])],
+            )
         style.configure(
             "HeaderTitle.TLabel",
             background=colors["navy"],
@@ -2202,34 +2236,49 @@ class BatchRenameApp:
 
     def _build_tool_panels(self, parent: ttk.Frame) -> None:
         self.active_tool_panel: str | None = None
-        self.settings_panel = ttk.Frame(parent, style="Card.TFrame", padding=14)
-        self.settings_panel.columnconfigure(1, weight=1)
-        ttk.Label(self.settings_panel, text="扫描与预览设置", style="CardTitle.TLabel").grid(
-            row=0, column=0, columnspan=4, sticky="w", pady=(0, 9)
-        )
-        ttk.Label(self.settings_panel, text="扫描层级", style="Field.TLabel").grid(
-            row=1, column=0, sticky="w", pady=4
-        )
-        all_depth = ttk.Radiobutton(
+        self.settings_panel = ttk.Frame(parent, style="Card.TFrame", padding=18)
+        self.settings_panel.columnconfigure(0, weight=1)
+        self.settings_panel.rowconfigure(1, weight=1)
+        (
+            self.settings_panel_title,
+            self.settings_panel_helper,
+            self.settings_panel_close,
+        ) = self._build_tool_panel_header(
             self.settings_panel,
+            "扫描与预览设置",
+            "集中调整当前规则的扫描范围、处理对象和名称保护选项。",
+        )
+        settings_content = ttk.Frame(self.settings_panel, style="Card.TFrame")
+        settings_content.grid(row=1, column=0, sticky="nsew", pady=(16, 0))
+        settings_content.columnconfigure(0, weight=1)
+
+        scan_group, scan_title = self._build_settings_group(
+            settings_content,
+            row=0,
+            title="扫描范围",
+            helper="控制从根目录向下读取多少层；根目录本身不会改名。",
+        )
+        scan_group.columnconfigure(3, weight=1)
+        all_depth = ttk.Radiobutton(
+            scan_group,
             text="全部层级",
             variable=self.depth_mode_var,
             value="all",
-            style="Card.TRadiobutton",
+            style="PanelSection.TRadiobutton",
             command=self._update_depth_state,
         )
-        all_depth.grid(row=1, column=1, sticky="w")
+        all_depth.grid(row=2, column=0, sticky="w", pady=(8, 0))
         limited = ttk.Radiobutton(
-            self.settings_panel,
+            scan_group,
             text="最多",
             variable=self.depth_mode_var,
             value="limited",
-            style="Card.TRadiobutton",
+            style="PanelSection.TRadiobutton",
             command=self._update_depth_state,
         )
-        limited.grid(row=1, column=2, sticky="w")
+        limited.grid(row=2, column=1, sticky="w", padx=(14, 0), pady=(8, 0))
         self.depth_spin = ttk.Spinbox(
-            self.settings_panel,
+            scan_group,
             from_=1,
             to=999,
             width=6,
@@ -2237,67 +2286,103 @@ class BatchRenameApp:
             style="Modern.TSpinbox",
             justify="center",
         )
-        self.depth_spin.grid(row=1, column=3, sticky="w", padx=(4, 0))
-        ttk.Label(self.settings_panel, text="处理对象", style="Field.TLabel").grid(
-            row=2, column=0, sticky="w", pady=4
+        self.depth_spin.grid(row=2, column=2, sticky="w", padx=(6, 0), pady=(8, 0))
+        ttk.Label(scan_group, text="层", style="PanelSectionHint.TLabel").grid(
+            row=2, column=3, sticky="w", padx=(5, 0), pady=(8, 0)
+        )
+
+        object_group, object_title = self._build_settings_group(
+            settings_content,
+            row=1,
+            title="处理对象",
+            helper="可以只查询文件夹、只查询文件，或同时处理两类名称。",
         )
         dirs = ttk.Checkbutton(
-            self.settings_panel,
+            object_group,
             text="文件夹",
             variable=self.include_dirs_var,
-            style="Card.TCheckbutton",
+            style="PanelSection.TCheckbutton",
         )
-        dirs.grid(row=2, column=1, sticky="w")
+        dirs.grid(row=2, column=0, sticky="w", pady=(8, 0))
         files = ttk.Checkbutton(
-            self.settings_panel,
+            object_group,
             text="文件",
             variable=self.include_files_var,
-            style="Card.TCheckbutton",
+            style="PanelSection.TCheckbutton",
         )
-        files.grid(row=2, column=2, sticky="w")
+        files.grid(row=2, column=1, sticky="w", padx=(18, 0), pady=(8, 0))
+
+        protection_group, protection_title = self._build_settings_group(
+            settings_content,
+            row=2,
+            title="名称保护",
+            helper="默认保留文件最后一个扩展名，避免无意改变文件类型。",
+        )
         extension = ttk.Checkbutton(
-            self.settings_panel,
+            protection_group,
             text="允许修改扩展名",
             variable=self.rename_extension_var,
-            style="Card.TCheckbutton",
+            style="PanelSection.TCheckbutton",
         )
-        extension.grid(row=3, column=0, columnspan=4, sticky="w", pady=(4, 0))
+        extension.grid(row=2, column=0, sticky="w", pady=(8, 0))
         ttk.Label(
-            self.settings_panel,
+            protection_group,
             text="层级和处理对象改变后需要重新扫描；扩展名选项只会使结果预览失效。",
             style="Hint.TLabel",
-            wraplength=390,
-        ).grid(row=4, column=0, columnspan=4, sticky="ew", pady=(8, 0))
+            wraplength=520,
+        ).grid(row=3, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        self.settings_groups = (scan_group, object_group, protection_group)
+        self.settings_group_labels = (scan_title, object_title, protection_title)
         self._input_widgets.extend([all_depth, limited, self.depth_spin, dirs, files, extension])
 
-        self.templates_panel = ttk.Frame(parent, style="Card.TFrame", padding=14)
-        self.templates_panel.columnconfigure(1, weight=1)
-        self.templates_panel.rowconfigure(2, weight=1)
-        ttk.Label(self.templates_panel, text="常用正则模板", style="CardTitle.TLabel").grid(
-            row=0, column=0, columnspan=2, sticky="w"
+        self.templates_panel = ttk.Frame(parent, style="Card.TFrame", padding=18)
+        self.templates_panel.columnconfigure(0, weight=1)
+        self.templates_panel.rowconfigure(1, weight=1)
+        (
+            self.templates_panel_title,
+            self.templates_panel_helper,
+            self.templates_panel_close,
+        ) = self._build_tool_panel_header(
+            self.templates_panel,
+            "常用正则模板",
+            "按用途选择示例，确认处理前后效果后可一键应用到当前规则。",
         )
+        template_content = ttk.Frame(self.templates_panel, style="Card.TFrame")
+        template_content.grid(row=1, column=0, sticky="nsew", pady=(16, 0))
+        template_content.columnconfigure(0, weight=2, uniform="template-columns")
+        template_content.columnconfigure(1, weight=3, uniform="template-columns")
+        template_content.rowconfigure(0, weight=1)
+
+        self.regex_template_browser = ttk.Frame(
+            template_content, style="PanelSection.TFrame", padding=12
+        )
+        self.regex_template_browser.grid(row=0, column=0, sticky="nsew", padx=(0, 7))
+        self.regex_template_browser.columnconfigure(0, weight=1)
+        self.regex_template_browser.rowconfigure(2, weight=1)
+        ttk.Label(
+            self.regex_template_browser,
+            text="模板库",
+            style="PanelSectionTitle.TLabel",
+        ).grid(row=0, column=0, sticky="w")
         categories = tuple(dict.fromkeys(example.category for example in REGEX_EXAMPLES))
         self.regex_category_var = tk.StringVar(self.root, value=categories[0])
         self.regex_category_selector = ttk.Combobox(
-            self.templates_panel,
+            self.regex_template_browser,
             textvariable=self.regex_category_var,
             values=categories,
             state="readonly",
             width=17,
             style="Modern.TCombobox",
         )
-        self.regex_category_selector.grid(row=1, column=0, sticky="ew", pady=(8, 7), padx=(0, 9))
+        self.regex_category_selector.grid(row=1, column=0, sticky="ew", pady=(10, 9))
         self.regex_purpose_var = tk.StringVar(self.root)
-        ttk.Label(
-            self.templates_panel,
-            textvariable=self.regex_purpose_var,
-            style="Hint.TLabel",
-            wraplength=270,
-            justify="left",
-        ).grid(row=1, column=1, sticky="ew", pady=(8, 7))
 
+        list_frame = ttk.Frame(self.regex_template_browser, style="PanelSection.TFrame")
+        list_frame.grid(row=2, column=0, sticky="nsew")
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(0, weight=1)
         self.regex_template_list = tk.Listbox(
-            self.templates_panel,
+            list_frame,
             exportselection=False,
             activestyle="none",
             height=8,
@@ -2308,53 +2393,84 @@ class BatchRenameApp:
             highlightthickness=1,
             highlightbackground=self.COLORS["border"],
             highlightcolor=self.COLORS["accent"],
-            background="#F8FAFC",
+            background=self.COLORS["input"],
             foreground=self.COLORS["text"],
             selectbackground=self.COLORS["accent"],
             selectforeground="#FFFFFF",
         )
-        self.regex_template_list.grid(row=2, column=0, rowspan=5, sticky="nsew", padx=(0, 9))
+        self.regex_template_list.grid(row=0, column=0, sticky="nsew")
+        regex_list_scrollbar = ttk.Scrollbar(
+            list_frame,
+            orient="vertical",
+            command=self.regex_template_list.yview,
+            style="Modern.Vertical.TScrollbar",
+        )
+        regex_list_scrollbar.grid(row=0, column=1, sticky="ns")
+        self.regex_template_list.configure(yscrollcommand=regex_list_scrollbar.set)
+
+        self.regex_template_details = ttk.Frame(
+            template_content, style="PanelSection.TFrame", padding=14
+        )
+        self.regex_template_details.grid(row=0, column=1, sticky="nsew", padx=(7, 0))
+        self.regex_template_details.columnconfigure(0, weight=1)
+        self.regex_template_details.rowconfigure(8, weight=1)
+        ttk.Label(
+            self.regex_template_details,
+            text="规则详情",
+            style="PanelSectionTitle.TLabel",
+        ).grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            self.regex_template_details,
+            textvariable=self.regex_purpose_var,
+            style="PanelSectionHint.TLabel",
+            wraplength=350,
+            justify="left",
+        ).grid(row=1, column=0, sticky="ew", pady=(5, 12))
         self.regex_example_search_var = tk.StringVar(self.root)
         self.regex_example_replacement_var = tk.StringVar(self.root)
         self.regex_before_var = tk.StringVar(self.root)
         self.regex_after_var = tk.StringVar(self.root)
         self.regex_option_note_var = tk.StringVar(self.root)
-        ttk.Label(self.templates_panel, text="查找表达式", style="Field.TLabel").grid(
-            row=2, column=1, sticky="w"
+        ttk.Label(self.regex_template_details, text="查找表达式", style="Field.TLabel").grid(
+            row=2, column=0, sticky="w"
         )
         self.regex_search_entry = ttk.Entry(
-            self.templates_panel,
+            self.regex_template_details,
             textvariable=self.regex_example_search_var,
             state="readonly",
             style="Modern.TEntry",
             font=("Consolas", 9),
         )
-        self.regex_search_entry.grid(row=3, column=1, sticky="ew", pady=(2, 5))
-        ttk.Label(self.templates_panel, text="替换内容", style="Field.TLabel").grid(
-            row=4, column=1, sticky="w"
+        self.regex_search_entry.grid(row=3, column=0, sticky="ew", pady=(3, 10), ipady=2)
+        ttk.Label(self.regex_template_details, text="替换内容", style="Field.TLabel").grid(
+            row=4, column=0, sticky="w"
         )
         self.regex_replacement_entry = ttk.Entry(
-            self.templates_panel,
+            self.regex_template_details,
             textvariable=self.regex_example_replacement_var,
             state="readonly",
             style="Modern.TEntry",
             font=("Consolas", 9),
         )
-        self.regex_replacement_entry.grid(row=5, column=1, sticky="ew", pady=(2, 5))
+        self.regex_replacement_entry.grid(row=5, column=0, sticky="ew", pady=(3, 10), ipady=2)
         self.regex_example_text_var = tk.StringVar(self.root)
         ttk.Label(
-            self.templates_panel,
+            self.regex_template_details,
             textvariable=self.regex_example_text_var,
-            style="Card.TLabel",
-            foreground=self.COLORS["ready"],
-            wraplength=270,
-        ).grid(row=6, column=1, sticky="ew")
+            style="PanelExample.TLabel",
+            wraplength=350,
+        ).grid(row=6, column=0, sticky="ew", pady=(0, 6))
+        ttk.Label(
+            self.regex_template_details,
+            textvariable=self.regex_option_note_var,
+            style="PanelSectionHint.TLabel",
+        ).grid(row=7, column=0, sticky="w")
         self.regex_apply_button = ttk.Button(
-            self.templates_panel,
+            self.regex_template_details,
             text="一键应用此规则",
             style="Accent.TButton",
         )
-        self.regex_apply_button.grid(row=7, column=1, sticky="e", pady=(8, 0))
+        self.regex_apply_button.grid(row=9, column=0, sticky="e", pady=(14, 0))
         self.regex_category_selector.bind("<<ComboboxSelected>>", self._filter_regex_templates)
         self.regex_template_list.bind("<<ListboxSelect>>", self._show_selected_regex_template)
         self.regex_template_list.bind("<Double-Button-1>", lambda _event: self.regex_apply_button.invoke())
@@ -2372,6 +2488,54 @@ class BatchRenameApp:
                 "<Button-1>", lambda _event: self._close_overlays(), add="+"
             )
 
+    def _build_tool_panel_header(
+        self,
+        panel: ttk.Frame,
+        title: str,
+        helper: str,
+    ) -> tuple[ttk.Label, ttk.Label, ttk.Button]:
+        header = ttk.Frame(panel, style="Card.TFrame")
+        header.grid(row=0, column=0, sticky="ew")
+        header.columnconfigure(0, weight=1)
+        title_label = ttk.Label(header, text=title, style="CardTitle.TLabel")
+        title_label.grid(row=0, column=0, sticky="w")
+        helper_label = ttk.Label(
+            header,
+            text=helper,
+            style="Hint.TLabel",
+            justify="left",
+        )
+        helper_label.grid(row=1, column=0, sticky="w", pady=(4, 0), padx=(0, 18))
+        close_button = ttk.Button(
+            header,
+            text="关闭",
+            style="Secondary.TButton",
+            command=self._close_tool_panel,
+        )
+        close_button.grid(row=0, column=1, rowspan=2, sticky="ne")
+        return title_label, helper_label, close_button
+
+    def _build_settings_group(
+        self,
+        parent: ttk.Frame,
+        *,
+        row: int,
+        title: str,
+        helper: str,
+    ) -> tuple[ttk.Frame, ttk.Label]:
+        group = ttk.Frame(parent, style="PanelSection.TFrame", padding=(14, 11))
+        group.grid(row=row, column=0, sticky="ew", pady=(0 if row == 0 else 9, 0))
+        group.columnconfigure(0, weight=0)
+        title_label = ttk.Label(group, text=title, style="PanelSectionTitle.TLabel")
+        title_label.grid(row=0, column=0, columnspan=4, sticky="w")
+        ttk.Label(
+            group,
+            text=helper,
+            style="PanelSectionHint.TLabel",
+            justify="left",
+        ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(3, 0))
+        return group, title_label
+
     def _toggle_tool_panel(self, name: str) -> None:
         if self.active_tool_panel == name:
             self._close_tool_panel()
@@ -2384,7 +2548,7 @@ class BatchRenameApp:
         self._position_active_tool_panel()
 
     def _position_active_tool_panel(self) -> None:
-        """将当前浮动工具限制在主内容区域内并贴近侧栏。"""
+        """将工作面板居中放入侧栏右侧，并限制在主内容区域内。"""
 
         if self.active_tool_panel is None:
             return
@@ -2395,12 +2559,19 @@ class BatchRenameApp:
         )
         self.root.update_idletasks()
         rail_width = self.RAIL_WIDTHS[self.current_layout_mode]
-        x = rail_width + 8
-        available_width = max(360, self.body_frame.winfo_width() - x)
-        width = min(500, available_width - 16)
+        margin = 12
+        x = rail_width + margin
+        available_width = max(1, self.body_frame.winfo_width() - x - margin)
+        target_width = 720 if self.current_layout_mode == "spacious" else 620
+        width = min(target_width, available_width)
         body_height = max(1, self.body_frame.winfo_height())
-        height = min(panel.winfo_reqheight(), max(1, body_height - 16))
-        y = max(8, body_height - height - 8)
+        available_height = max(1, body_height - margin * 2)
+        target_height = 460 if self.active_tool_panel == "templates" else 420
+        height = min(
+            available_height,
+            max(target_height, panel.winfo_reqheight()),
+        )
+        y = max(margin, (body_height - height) // 2)
         panel.place(x=x, y=y, width=width, height=height)
         panel.lift()
 
