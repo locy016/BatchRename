@@ -572,6 +572,62 @@ def test_main_window_uses_one_result_table_with_type_column(tk_window):
     assert not hasattr(app, "help_button")
 
 
+def test_directory_overview_replaces_the_decorative_brand_header(tk_window):
+    app = BatchRenameApp(tk_window)
+
+    assert not hasattr(app, "brand_icon_label")
+    assert app.main_content.grid_rowconfigure(0)["weight"] > 0
+    assert app.directory_overview.grid_info()["row"] == 0
+    assert app.result_card.grid_info()["row"] == 1
+    assert app.progress_frame.grid_info()["row"] == 2
+    assert app.directory_context_path_label.cget("textvariable") == str(
+        app.directory_context_path_var
+    )
+    assert app.directory_context_scope_label.cget("textvariable") == str(
+        app.directory_context_scope_var
+    )
+
+
+def test_match_statistics_are_presented_below_the_result_table(tk_window):
+    app = BatchRenameApp(tk_window)
+
+    assert app.stats_footer.master is app.result_card
+    assert app.stats_footer.grid_info()["row"] > app.result_tree.grid_info()["row"]
+    assert tuple(label.cget("text") for label in app.match_stat_title_labels) == (
+        "匹配",
+        "可修改",
+        "名称未变化",
+        "阻止执行",
+    )
+    assert tuple(variable.get() for variable in app.match_stat_value_vars) == (
+        "0",
+        "0",
+        "0",
+        "0",
+    )
+
+
+def test_directory_overview_uses_snapshot_counts_and_keeps_full_path_tooltip(
+    tk_window,
+):
+    app = BatchRenameApp(tk_window)
+    snapshot = MatchResult(
+        root=Path("C:/非常长的目录/客户资料/2026/待处理"),
+        search="项目",
+        use_regex=False,
+        scanned_directory_count=18,
+        scanned_file_count=205,
+        errors=["无法读取"],
+    )
+
+    app._set_directory_inventory(snapshot)
+
+    assert app.directory_folder_count_var.get() == "18"
+    assert app.directory_file_count_var.get() == "205"
+    assert app.directory_inventory_warning_var.get() == "1 处无法读取"
+    assert app.directory_path_tooltip.text.endswith(r"客户资料\2026\待处理")
+
+
 def test_top_menu_contains_only_global_commands(tk_window):
     app = BatchRenameApp(tk_window)
 
@@ -844,7 +900,7 @@ def test_default_layout_uses_content_sized_minimum_and_expands_the_result_area(t
     assert tk_window.winfo_reqwidth() <= 1120
     assert tk_window.winfo_reqheight() <= 720
     assert int(app.result_tree.cget("height")) >= 10
-    assert app.main_content.grid_rowconfigure(1)["weight"] > 0
+    assert app.main_content.grid_rowconfigure(0)["weight"] > 0
     assert app.result_workspace.grid_rowconfigure(1)["weight"] > 0
     assert app.result_card.grid_rowconfigure(1)["weight"] > 0
 
@@ -1037,7 +1093,7 @@ def test_tall_high_resolution_window_uses_compact_navigation(tk_window):
     assert app.workflow_rail.winfo_manager() == ""
 
 
-def test_left_workflow_is_ordered_and_statistics_stay_on_one_line(tk_window):
+def test_left_workflow_is_ordered_and_statistics_keep_complete_values(tk_window):
     app = BatchRenameApp(
         tk_window, work_area_provider=lambda _root: (0, 0, 2560, 1440)
     )
@@ -1046,7 +1102,12 @@ def test_left_workflow_is_ordered_and_statistics_stay_on_one_line(tk_window):
     assert app.stats_var.get() == (
         "匹配：0项 | 可修改：0项 | 名称未变化：0项 | 阻止执行：0项"
     )
-    assert not app.stats_label.cget("wraplength")
+    assert tuple(variable.get() for variable in app.match_stat_value_vars) == (
+        "0",
+        "0",
+        "0",
+        "0",
+    )
 
     rows = [
         app.directory_select_button.grid_info()["row"],
@@ -1080,7 +1141,7 @@ def test_bottom_tool_buttons_fit_inside_960_by_680_workflow_rail(tk_window, scal
             assert button.winfo_y() + button.winfo_height() <= app.workflow_rail.winfo_height()
         assert app.workflow_rail.winfo_x() + app.workflow_rail.winfo_width() <= app.body_frame.winfo_width()
         assert app.workflow_rail.winfo_y() + app.workflow_rail.winfo_height() <= app.body_frame.winfo_height()
-        assert app.stats_label.winfo_width() >= app.stats_label.winfo_reqwidth()
+        assert app.stats_footer.winfo_width() >= app.stats_footer.winfo_reqwidth()
         app._toggle_tool_panel("templates")
         tk_window.update()
         assert (
@@ -1212,7 +1273,10 @@ def test_main_controls_use_the_polished_component_styles(tk_window):
     assert app.root_directory_label.cget("style") == "WorkflowTitle.TLabel"
     assert app.search_field_label.cget("style") == "WorkflowHint.TLabel"
     assert app.replacement_field_label.cget("style") == "WorkflowTitle.TLabel"
-    assert app.stats_label.cget("style") == "MatchStats.TLabel"
+    assert all(
+        label.cget("style") == "MatchStatTitle.TLabel"
+        for label in app.match_stat_title_labels
+    )
     assert app.workflow_rail.cget("style") == "Workflow.TFrame"
     assert app.result_scrollbar.cget("style") == "Modern.Vertical.TScrollbar"
     assert (
@@ -1231,8 +1295,9 @@ def test_main_controls_use_the_polished_component_styles(tk_window):
     assert style.lookup("Modern.Horizontal.TProgressbar", "troughcolor")
 
 
-def test_main_window_loads_project_icon_for_window_and_header(tk_window):
+def test_main_window_loads_project_icon_without_a_decorative_header(tk_window):
     app = BatchRenameApp(tk_window)
 
     assert app._app_icon is not None
-    assert app.brand_icon_label.cget("image")
+    assert app._header_icon is not None
+    assert not hasattr(app, "brand_icon_label")

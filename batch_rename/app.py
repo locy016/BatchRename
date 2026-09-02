@@ -1021,6 +1021,16 @@ class BatchRenameApp:
         self.stats_var = tk.StringVar(
             value="匹配：0项 | 可修改：0项 | 名称未变化：0项 | 阻止执行：0项"
         )
+        self.matched_count_var = tk.StringVar(value="0")
+        self.ready_count_var = tk.StringVar(value="0")
+        self.unchanged_count_var = tk.StringVar(value="0")
+        self.blocked_count_var = tk.StringVar(value="0")
+        self.match_stat_value_vars = (
+            self.matched_count_var,
+            self.ready_count_var,
+            self.unchanged_count_var,
+            self.blocked_count_var,
+        )
         self.status_var = tk.StringVar(value="请设置目录和规则，然后点击“结果预览”。")
         self.progress_text_var = tk.StringVar(value="等待操作")
         self.directory_context_path_var = tk.StringVar(value=self.directory_var.get())
@@ -1205,6 +1215,42 @@ class BatchRenameApp:
             font=("Microsoft YaHei UI", 9, "bold"),
             padding=(8, 5),
         )
+        style.configure(
+            "DirectoryPath.TLabel",
+            background=colors["card"],
+            foreground=colors["text"],
+            font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.configure(
+            "ContextTitle.TLabel",
+            background=colors["card"],
+            foreground=colors["muted"],
+            font=("Microsoft YaHei UI", 8),
+        )
+        style.configure(
+            "ContextValue.TLabel",
+            background=colors["card"],
+            foreground=colors["navy"],
+            font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.configure(
+            "ContextWarning.TLabel",
+            background=colors["card"],
+            foreground=colors["warning"],
+            font=("Microsoft YaHei UI", 8, "bold"),
+        )
+        style.configure(
+            "MatchStatTitle.TLabel",
+            background="#F5F7FA",
+            foreground=colors["muted"],
+            font=("Microsoft YaHei UI", 8),
+        )
+        style.configure(
+            "MatchStatValue.TLabel",
+            background="#F5F7FA",
+            foreground=colors["navy"],
+            font=("Microsoft YaHei UI", 11, "bold"),
+        )
         style.configure("Card.TCheckbutton", background=colors["card"], foreground=colors["text"])
         style.configure(
             "Card.TCheckbutton",
@@ -1387,32 +1433,11 @@ class BatchRenameApp:
         outer = ttk.Frame(self.root, style="App.TFrame", padding=(8, 6, 8, 5))
         outer.pack(fill="both", expand=True)
         outer.columnconfigure(0, weight=1)
-        outer.rowconfigure(1, weight=1)
+        outer.rowconfigure(0, weight=1)
         self.main_content = outer
 
-        header = ttk.Frame(outer, style="Header.TFrame", padding=(11, 6))
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 5))
-        header.columnconfigure(1, weight=1)
-        if self._header_icon is not None:
-            self.brand_icon_label = ttk.Label(
-                header,
-                image=self._header_icon,
-                style="Icon.TLabel",
-                padding=2,
-            )
-        else:
-            self.brand_icon_label = ttk.Label(header, text="↻", style="Icon.TLabel", width=3)
-        self.brand_icon_label.grid(row=0, column=0, rowspan=2, sticky="nsw", padx=(0, 13))
-        ttk.Label(header, text="批量重命名", style="HeaderTitle.TLabel").grid(
-            row=0, column=1, sticky="w"
-        )
-        ttk.Label(
-            header,
-            text="在执行前看清每一个匹配结果，安全整理多层目录中的文件夹与文件。",
-            style="HeaderSubtitle.TLabel",
-        ).grid(row=1, column=1, sticky="w", pady=(2, 0))
         body = ttk.Frame(outer, style="App.TFrame")
-        body.grid(row=1, column=0, sticky="nsew")
+        body.grid(row=0, column=0, sticky="nsew")
         body.rowconfigure(0, weight=1)
         body.columnconfigure(1, weight=1)
         self.body_frame = body
@@ -1726,7 +1751,7 @@ class BatchRenameApp:
         workspace.rowconfigure(1, weight=1)
         workspace.columnconfigure(0, weight=1)
         self.result_workspace = workspace
-        self._build_actions_frame(workspace)
+        self._build_directory_overview(workspace)
         self._build_preview_frame(workspace)
         self._build_progress_frame(workspace)
 
@@ -1895,7 +1920,7 @@ class BatchRenameApp:
             self.result_workspace,
             self.result_card,
             self.result_tree,
-            self.stats_label,
+            self.stats_footer,
             self.progress,
         ):
             widget.bind(
@@ -2138,16 +2163,56 @@ class BatchRenameApp:
         )
         self.rule_feedback_label.grid(row=3, column=0, columnspan=5, sticky="w", pady=(3, 0))
 
-    def _build_actions_frame(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent, style="Card.TFrame", padding=(8, 5))
+    def _build_directory_overview(self, parent: ttk.Frame) -> None:
+        frame = ttk.Frame(parent, style="Card.TFrame", padding=(11, 7))
         frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
         frame.columnconfigure(0, weight=1)
-        self.stats_label = ttk.Label(
-            frame,
-            textvariable=self.stats_var,
-            style="MatchStats.TLabel",
+        self.directory_overview = frame
+        ttk.Label(frame, text="当前目录", style="ContextTitle.TLabel").grid(
+            row=0, column=0, sticky="w"
         )
-        self.stats_label.grid(row=0, column=0, sticky="w")
+        self.directory_context_path_label = ttk.Label(
+            frame,
+            textvariable=self.directory_context_path_var,
+            style="DirectoryPath.TLabel",
+            anchor="w",
+        )
+        self.directory_context_path_label.grid(
+            row=1, column=0, sticky="ew", padx=(0, 16)
+        )
+        self.directory_path_tooltip = ToolTip(
+            self.directory_context_path_label,
+            self.directory_context_path_var.get(),
+        )
+
+        context_items = (
+            ("扫描范围", self.directory_context_scope_var),
+            ("文件夹", self.directory_folder_count_var),
+            ("文件", self.directory_file_count_var),
+            ("状态", self.directory_inventory_state_var),
+        )
+        for column, (title, variable) in enumerate(context_items, start=1):
+            ttk.Label(frame, text=title, style="ContextTitle.TLabel").grid(
+                row=0, column=column, sticky="w", padx=(0 if column == 1 else 14, 0)
+            )
+            label = ttk.Label(
+                frame,
+                textvariable=variable,
+                style="ContextValue.TLabel",
+            )
+            label.grid(
+                row=1, column=column, sticky="w", padx=(0 if column == 1 else 14, 0)
+            )
+            if title == "扫描范围":
+                self.directory_context_scope_label = label
+        self.directory_warning_label = ttk.Label(
+            frame,
+            textvariable=self.directory_inventory_warning_var,
+            style="ContextWarning.TLabel",
+        )
+        self.directory_warning_label.grid(
+            row=2, column=0, columnspan=5, sticky="e", pady=(2, 0)
+        )
 
     def _build_preview_frame(self, parent: ttk.Frame) -> None:
         frame = ttk.Frame(parent, style="Card.TFrame", padding=(8, 5))
@@ -2182,6 +2247,38 @@ class BatchRenameApp:
         )
         self._input_widgets.append(self.preview_spin)
         self.result_tree = self._create_tree(frame)
+        self._build_match_stats_footer(frame)
+
+    def _build_match_stats_footer(self, parent: ttk.Frame) -> None:
+        footer = ttk.Frame(parent, style="App.TFrame", padding=(8, 5))
+        footer.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(5, 0))
+        self.stats_footer = footer
+        titles = ("匹配", "可修改", "名称未变化", "阻止执行")
+        self.match_stat_title_labels: list[ttk.Label] = []
+        for column, (title, variable) in enumerate(
+            zip(titles, self.match_stat_value_vars)
+        ):
+            footer.columnconfigure(column, weight=1, uniform="match-stats")
+            item = ttk.Frame(footer, style="App.TFrame")
+            item.grid(
+                row=0,
+                column=column,
+                sticky="ew",
+                padx=(0 if column == 0 else 6, 0),
+            )
+            item.columnconfigure(1, weight=1)
+            title_label = ttk.Label(
+                item,
+                text=title,
+                style="MatchStatTitle.TLabel",
+            )
+            title_label.grid(row=0, column=0, sticky="w")
+            ttk.Label(
+                item,
+                textvariable=variable,
+                style="MatchStatValue.TLabel",
+            ).grid(row=0, column=1, sticky="e", padx=(8, 0))
+            self.match_stat_title_labels.append(title_label)
 
     def _create_tree(self, parent: ttk.Frame) -> ttk.Treeview:
         parent.rowconfigure(1, weight=1)
@@ -2263,6 +2360,7 @@ class BatchRenameApp:
     def _build_progress_frame(self, parent: ttk.Frame) -> None:
         frame = ttk.Frame(parent, style="Card.TFrame", padding=(7, 4))
         frame.grid(row=2, column=0, sticky="ew")
+        self.progress_frame = frame
         frame.columnconfigure(0, weight=1)
         self.progress = ttk.Progressbar(frame, mode="determinate", maximum=100, style="Modern.Horizontal.TProgressbar")
         self.progress.grid(row=0, column=0, sticky="ew", padx=(0, 8))
@@ -2318,6 +2416,31 @@ class BatchRenameApp:
         self.directory_file_count_var.set(view.file_count)
         self.directory_inventory_state_var.set(view.state)
         self.directory_inventory_warning_var.set(view.warning)
+        if hasattr(self, "directory_path_tooltip"):
+            self.directory_path_tooltip.set_text(
+                self.directory_context_path_var.get() or "尚未选择目录"
+            )
+
+    def _set_match_statistics(
+        self,
+        matched: int | str,
+        ready: int | str,
+        unchanged: int | str,
+        blocked: int | str,
+    ) -> None:
+        """同步更新结果表下方四项统计和兼容汇总文字。"""
+
+        values = (matched, ready, unchanged, blocked)
+        for variable, value in zip(self.match_stat_value_vars, values):
+            variable.set(str(value))
+
+        def summary_value(value: int | str) -> str:
+            return f"{value}项" if isinstance(value, int) else str(value)
+
+        self.stats_var.set(
+            f"匹配：{summary_value(matched)} | 可修改：{summary_value(ready)} | "
+            f"名称未变化：{summary_value(unchanged)} | 阻止执行：{summary_value(blocked)}"
+        )
 
     def _search_from_entry(self, _event=None) -> str:
         self._start_search()
@@ -2333,6 +2456,7 @@ class BatchRenameApp:
         ):
             self._last_matches = None
             self._last_scan = None
+            self._set_match_statistics(0, 0, 0, 0)
             self.status_var.set("扫描条件已改变，请重新执行“扫描”。")
             self._render_preview()
         self._update_rule_feedback(validate_replacement=False)
@@ -2346,6 +2470,10 @@ class BatchRenameApp:
     def _on_preview_input_changed(self, *_args) -> None:
         if not self._busy and self._last_scan is not None:
             self._last_scan = None
+            matched_total = (
+                len(self._last_matches.items) if self._last_matches is not None else 0
+            )
+            self._set_match_statistics(matched_total, "—", "—", "—")
             self.status_var.set("替换设置已改变，请重新生成“结果预览”。")
             self._render_preview()
         self._update_rule_feedback(validate_replacement=True)
@@ -2460,9 +2588,7 @@ class BatchRenameApp:
         self._inventory_scanning = False
         self._set_directory_inventory(result)
         matched_total = len(result.items)
-        self.stats_var.set(
-            f"匹配：{matched_total}项 | 可修改：— | 名称未变化：— | 阻止执行：—"
-        )
+        self._set_match_statistics(matched_total, "—", "—", "—")
         self.progress_text_var.set(f"扫描完成：找到 {matched_total} 个名称匹配")
         self._render_preview()
         if matched_total:
@@ -2534,9 +2660,11 @@ class BatchRenameApp:
         self._set_busy(False)
         self._last_scan = result
         summary = summarize_candidates(result.candidates)
-        self.stats_var.set(
-            f"匹配：{summary['matched_total']}项 | 可修改：{summary['ready_total']}项 | "
-            f"名称未变化：{summary['unchanged_total']}项 | 阻止执行：{summary['blocked_total']}项"
+        self._set_match_statistics(
+            summary["matched_total"],
+            summary["ready_total"],
+            summary["unchanged_total"],
+            summary["blocked_total"],
         )
         self.progress_text_var.set(f"预览完成：已检查 {summary['matched_total']} 个匹配名称")
         self._render_preview()
@@ -2850,6 +2978,7 @@ class BatchRenameApp:
         self._last_matches = None
         self._last_scan = None
         self._set_directory_inventory(None)
+        self._set_match_statistics(0, 0, 0, 0)
         self._sync_command_states()
         self.progress.configure(value=max(len(result.records), 1))
         self.progress_text_var.set(
