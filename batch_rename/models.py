@@ -57,6 +57,8 @@ class MatchResult:
     use_regex: bool
     items: list[MatchedItem] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    scanned_directory_count: int = 0
+    scanned_file_count: int = 0
 
 
 @dataclass(slots=True)

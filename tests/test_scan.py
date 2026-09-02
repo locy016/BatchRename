@@ -65,6 +65,53 @@ def test_search_matches_uses_kind_then_natural_name_order(tmp_path):
     assert [item.source for item in result.items] == [folder, second, tenth]
 
 
+def test_search_inventory_counts_every_entry_within_the_configured_depth(tmp_path):
+    first_level = tmp_path / "项目一级"
+    first_level.mkdir()
+    second_level = first_level / "资料"
+    second_level.mkdir()
+    touch(tmp_path / "项目直属.txt")
+    touch(first_level / "项目二级.txt")
+    touch(second_level / "深层说明.txt")
+
+    result = search_matches(MatchOptions(tmp_path, "项目", max_depth=2))
+
+    assert result.scanned_directory_count == 2
+    assert result.scanned_file_count == 2
+
+
+def test_search_inventory_is_independent_from_match_object_filters(tmp_path):
+    folder = tmp_path / "项目目录"
+    folder.mkdir()
+    touch(tmp_path / "项目文件.txt")
+    touch(folder / "普通文件.txt")
+
+    result = search_matches(
+        MatchOptions(
+            tmp_path,
+            "项目",
+            include_files=False,
+            include_dirs=True,
+        )
+    )
+
+    assert result.scanned_directory_count == 1
+    assert result.scanned_file_count == 2
+    assert [item.source for item in result.items] == [folder]
+
+
+def test_search_inventory_does_not_count_children_beyond_depth_one(tmp_path):
+    folder = tmp_path / "项目目录"
+    folder.mkdir()
+    touch(tmp_path / "项目直属.txt")
+    touch(folder / "项目深层.txt")
+
+    result = search_matches(MatchOptions(tmp_path, "项目", max_depth=1))
+
+    assert result.scanned_directory_count == 1
+    assert result.scanned_file_count == 1
+
+
 def test_build_preview_uses_snapshot_without_scandir(tmp_path, monkeypatch):
     source = touch(tmp_path / "旧版.txt")
     snapshot = search_matches(MatchOptions(tmp_path, "旧版"))

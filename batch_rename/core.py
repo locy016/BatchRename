@@ -167,6 +167,10 @@ def search_matches(options: MatchOptions) -> MatchResult:
                 continue
 
             source = Path(entry.path)
+            if is_dir:
+                result.scanned_directory_count += 1
+            elif is_file:
+                result.scanned_file_count += 1
             if is_dir and (
                 options.max_depth is None or child_depth < options.max_depth
             ):
