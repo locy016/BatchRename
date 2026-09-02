@@ -12,7 +12,7 @@
 * { box-sizing: border-box; }
 html, body, #app { width: 100%; min-width: 0; height: 100%; margin: 0; }
 button, input { font: inherit; }
-.app-shell { display: grid; grid-template-rows: 56px 1fr; min-height: 100%; }
+.app-shell { display: grid; grid-template-rows: 56px minmax(0, 1fr); height: 100%; min-height: 100%; }
 .app-header { display: flex; align-items: center; gap: 32px; padding: 0 20px; border-bottom: 1px solid #dfe4ec; background: #fff; }
 .product-title { font-size: 18px; font-weight: 700; }
 .app-header nav { display: flex; gap: 8px; }
@@ -20,4 +20,4 @@ button, input { font: inherit; }
 .theme-select { width: 112px; }
 .app-header a { padding: 8px 12px; color: #4b5568; text-decoration: none; border-radius: 8px; }
 .app-header a.router-link-active { color: #fff; background: #4f5bd5; }
-.app-main { min-width: 0; padding: 20px; overflow: auto; }
+.app-main { min-width: 0; min-height: 0; padding: 20px; overflow: hidden; }

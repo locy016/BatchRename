@@ -1,3 +1,5 @@
+> 此目录保留可独立运行与构建的 Python 版本。Rust + Tauri 2.0 测试候选及仓库总览请查看[根目录说明](../README.md)。
+
 <div align="center">
   <img src="assets/app-icon.png" width="112" alt="批量重命名应用图标">
   <h1>批量重命名</h1>
