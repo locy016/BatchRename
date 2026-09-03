@@ -5,17 +5,21 @@ use crate::services::preview::{build_preview, preview_page};
 use crate::state::job_manager::JobManager;
 
 #[tauri::command]
-pub fn build_rename_preview(
+pub async fn build_rename_preview(
     job_id: String,
     replacement: String,
     rename_extension: bool,
     manager: State<'_, JobManager>,
 ) -> Result<PreviewPage, String> {
+    let manager = manager.inner().clone();
     let snapshot = manager
         .snapshot(&job_id)
         .ok_or_else(|| "扫描结果已经失效，请重新扫描".to_owned())?;
-    let preview = build_preview(&snapshot, &replacement, rename_extension)
-        .map_err(|error| error.to_string())?;
+    let preview = tauri::async_runtime::spawn_blocking(move || {
+        build_preview(&snapshot, &replacement, rename_extension).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| format!("结果预览任务异常结束：{error}"))??;
     let page = preview_page(&preview, 0, 100);
     manager
         .save_preview(&job_id, preview)

@@ -15,7 +15,7 @@ fn fixture(name: &str) -> OperationLogV1 {
 }
 
 #[test]
-fn atomically_saves_and_loads_python_compatible_log() {
+fn atomically_saves_and_loads_stable_log_schema() {
     let directory = tempdir().unwrap();
     let store = OperationStore::new(directory.path());
     let operation = fixture("operation-completed-v1.json");
@@ -54,6 +54,18 @@ fn queries_newest_first_and_isolates_corrupt_files() {
             .iter()
             .any(|item| item.status == OperationStatus::Corrupt)
     );
+
+    let partial = page
+        .items
+        .iter()
+        .find(|item| item.identifier == "second")
+        .unwrap();
+    assert_eq!(partial.item_count, 2);
+    assert_eq!(partial.success_count, 1);
+    assert_eq!(partial.skipped_count, 0);
+    assert_eq!(partial.failed_count, 1);
+    assert_eq!(partial.undone_count, 0);
+    assert_eq!(partial.pending_undo_count, 1);
 }
 
 #[test]

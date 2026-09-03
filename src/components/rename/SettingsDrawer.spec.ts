@@ -2,6 +2,7 @@ import { createPinia } from 'pinia'
 import { mount, shallowMount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { describe, expect, it } from 'vitest'
+import { useRenameStore } from '../../stores/rename'
 import SettingsDrawer from './SettingsDrawer.vue'
 
 describe('扫描与命名设置', () => {
@@ -31,5 +32,20 @@ describe('扫描与命名设置', () => {
     expect(wrapper.text()).toContain('文件名称')
     expect(wrapper.text()).toContain('扩展名保护')
     expect(wrapper.findComponent({ name: 'ElInputNumber' }).exists()).toBe(true)
+  })
+
+  it('提供默认一百条的结果显示上限', () => {
+    const pinia = createPinia()
+    const wrapper = mount(SettingsDrawer, {
+      props: { modelValue: true },
+      global: {
+        plugins: [pinia, ElementPlus],
+        stubs: { ElDrawer: { template: '<aside><slot /></aside>' } },
+      },
+    })
+    const store = useRenameStore(pinia)
+
+    expect(store.previewLimit).toBe(100)
+    expect(wrapper.text()).toContain('结果显示')
   })
 })

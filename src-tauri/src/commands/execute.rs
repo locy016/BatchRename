@@ -6,7 +6,7 @@ use tauri::State;
 use tauri::ipc::Channel;
 
 #[tauri::command]
-pub fn execute_rename(
+pub async fn execute_rename(
     job_id: String,
     options: ExecutionOptionsDto,
     events: Channel<ExecutionProgress>,
@@ -16,15 +16,26 @@ pub fn execute_rename(
     let handle = manager
         .begin(JobType::Execute)
         .map_err(|error| error.to_string())?;
-    let preview = manager
-        .preview(&job_id)
-        .ok_or_else(|| "预览结果已经失效，请重新生成".to_owned())?;
-    let result = execute_preview(&preview, &options.into(), store.inner(), |event| {
-        let _ = events.send(event);
+    let manager = manager.inner().clone();
+    let identifier = handle.id;
+    let preview = match manager.preview(&job_id) {
+        Some(preview) => preview,
+        None => {
+            manager.finish(&identifier);
+            return Err("预览结果已经失效，请重新生成".to_owned());
+        }
+    };
+    let store = store.inner().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        execute_preview(&preview, &options.into(), &store, |event| {
+            let _ = events.send(event);
+        })
+        .map_err(|error| error.to_string())
     })
-    .map_err(|error| error.to_string());
-    manager.finish(&handle.id);
-    result
+    .await
+    .map_err(|error| format!("文件名处理任务异常结束：{error}"));
+    manager.finish(&identifier);
+    result?
 }
 
 #[derive(serde::Deserialize)]

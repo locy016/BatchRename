@@ -41,6 +41,19 @@ export interface ExecutionSummary {
   failed: number
 }
 
+export interface UndoProgress {
+  current: number
+  total: number
+  path: string
+  outcome: string
+  detail: string
+}
+
+export interface UndoSummary {
+  succeeded: number
+  failed: number
+}
+
 export interface MatchPage {
   items: MatchedItem[]
   total: number
@@ -74,7 +87,10 @@ export interface OperationSummary {
   status: string
   itemCount: number
   successCount: number
+  skippedCount: number
   failedCount: number
+  undoneCount: number
+  pendingUndoCount: number
 }
 
 export interface OperationPage { items: OperationSummary[]; total: number }
@@ -108,7 +124,7 @@ export interface DesktopApi {
   queryOperations(query: object): Promise<OperationPage>
   getOperation(identifier: string): Promise<OperationLogV1>
   checkUndo(identifier: string): Promise<UndoCheck>
-  undo(identifier: string, token: string, onProgress: (event: object) => void): Promise<{ succeeded: number; failed: number }>
+  undo(identifier: string, token: string, onProgress: (event: UndoProgress) => void): Promise<UndoSummary>
   loadPreferences(): Promise<{ appearance: string }>
   savePreferences(appearance: string): Promise<void>
 }

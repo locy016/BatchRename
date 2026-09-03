@@ -14,11 +14,12 @@
       {
         "label": "main",
         "title": "文件名管理",
-        "width": 1360,
-        "height": 840,
+        "width": 1180,
+        "height": 760,
         "minWidth": 1180,
         "minHeight": 760,
         "center": true,
+        "visible": false,
         "resizable": true
       }
     ],

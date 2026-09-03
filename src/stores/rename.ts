@@ -50,6 +50,7 @@ export const useRenameStore = defineStore('rename', {
     includeFiles: true,
     includeDirs: true,
     renameExtension: false,
+    previewLimit: 100,
     scanJobId: null as string | null,
     scanGeneration: 0,
     overviewGeneration: 0,
@@ -59,6 +60,8 @@ export const useRenameStore = defineStore('rename', {
     rootItems: [] as MatchedItem[],
     rootTotal: 0,
     matchedItems: [] as MatchedItem[],
+    matchedTotal: 0,
+    previewItems: [] as DisplayItem[],
     items: [] as DisplayItem[],
     summary: emptySummary(),
     overview: emptyOverview(),
@@ -88,9 +91,11 @@ export const useRenameStore = defineStore('rename', {
       this.scanJobId = null
       this.previewValid = false
       this.matchedItems = []
+      this.matchedTotal = 0
+      this.previewItems = []
       if (this.rootItems.length || this.rootTotal > 0) {
         this.resultMode = 'directory'
-        this.items = displayRootItems(this.rootItems)
+        this.items = displayRootItems(this.rootItems.slice(0, this.previewLimit))
       } else {
         this.resultMode = 'empty'
         this.items = []
@@ -100,14 +105,28 @@ export const useRenameStore = defineStore('rename', {
     },
     invalidatePreview() {
       this.previewValid = false
+      this.previewItems = []
       if (this.scanJobId) {
-        this.items = displayMatches(this.matchedItems)
+        this.items = displayMatches(this.matchedItems.slice(0, this.previewLimit))
         this.resultMode = 'matches'
       } else {
-        this.items = displayRootItems(this.rootItems)
+        this.items = displayRootItems(this.rootItems.slice(0, this.previewLimit))
         this.resultMode = this.root ? 'directory' : 'empty'
       }
-      this.summary = { ...emptySummary(), matched: this.matchedItems.length }
+      this.summary = { ...emptySummary(), matched: this.matchedTotal }
+    },
+    setPreviewLimit(value: number | undefined) {
+      const candidate = typeof value === 'number' && Number.isFinite(value) ? value : 100
+      const normalized = Math.min(100, Math.max(1, Math.trunc(candidate)))
+      if (this.previewLimit === normalized) return
+      this.previewLimit = normalized
+      if (this.resultMode === 'directory') {
+        this.items = displayRootItems(this.rootItems.slice(0, normalized))
+      } else if (this.resultMode === 'matches') {
+        this.items = displayMatches(this.matchedItems.slice(0, normalized))
+      } else if (this.resultMode === 'preview') {
+        this.items = this.previewItems.slice(0, normalized)
+      }
     },
     setRoot(value: string) {
       if (this.root !== value) {
@@ -167,7 +186,7 @@ export const useRenameStore = defineStore('rename', {
         if (generation !== this.rootListingGeneration || root !== this.root) return
         this.rootItems = page.items
         this.rootTotal = page.total
-        this.items = displayRootItems(page.items)
+        this.items = displayRootItems(page.items.slice(0, this.previewLimit))
         this.resultMode = 'directory'
       } catch (error) {
         if (generation === this.rootListingGeneration) {
@@ -217,7 +236,8 @@ export const useRenameStore = defineStore('rename', {
           files: result.overview.files,
         }
         this.matchedItems = result.page.items
-        this.items = displayMatches(result.page.items)
+        this.matchedTotal = result.page.total
+        this.items = displayMatches(result.page.items.slice(0, this.previewLimit))
         this.resultMode = 'matches'
         this.summary = { ...emptySummary(), matched: result.page.total }
         this.warnings = result.warnings
@@ -242,7 +262,8 @@ export const useRenameStore = defineStore('rename', {
       this.errorMessage = ''
       try {
         const page = await desktopApi.buildPreview(this.scanJobId, this.replacement, this.renameExtension)
-        this.items = page.items
+        this.previewItems = page.items
+        this.items = page.items.slice(0, this.previewLimit)
         this.resultMode = 'preview'
         this.summary = page.summary
         this.warnings = page.warnings

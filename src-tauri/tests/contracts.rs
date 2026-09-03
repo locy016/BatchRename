@@ -13,7 +13,7 @@ fn fixture_path(name: &str) -> PathBuf {
 }
 
 #[test]
-fn reads_all_python_operation_log_states() {
+fn reads_all_legacy_operation_log_states() {
     let expected = [
         ("operation-completed-v1.json", OperationStatus::Completed),
         ("operation-partial-v1.json", OperationStatus::Partial),

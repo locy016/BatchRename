@@ -1,5 +1,11 @@
 import { defineStore } from 'pinia'
-import { desktopApi, type OperationSummary, type UndoCheck } from '../api/desktop'
+import {
+  desktopApi,
+  type OperationSummary,
+  type UndoCheck,
+  type UndoProgress,
+  type UndoSummary,
+} from '../api/desktop'
 import type { OperationLogV1 } from '../types/contracts'
 
 export const useHistoryStore = defineStore('history', {
@@ -12,6 +18,10 @@ export const useHistoryStore = defineStore('history', {
     loading: false,
     selectionBusy: false,
     undoBusy: false,
+    undoProgress: {
+      current: 0, total: 0, path: '', outcome: '', detail: '',
+    } as UndoProgress,
+    undoSummary: null as UndoSummary | null,
     errorMessage: '',
     undoError: '',
     lastQuery: '',
@@ -48,6 +58,7 @@ export const useHistoryStore = defineStore('history', {
       this.selectionBusy = true
       this.undoCheck = null
       this.undoError = ''
+      this.undoSummary = null
 
       const [operationResult, undoResult] = await Promise.allSettled([
         desktopApi.getOperation(identifier),
@@ -81,10 +92,21 @@ export const useHistoryStore = defineStore('history', {
 
       this.undoBusy = true
       this.undoError = ''
+      this.undoSummary = null
+      this.undoProgress = {
+        current: 0,
+        total: check.items.length,
+        path: '',
+        outcome: '',
+        detail: '准备恢复原名称',
+      }
       try {
-        await desktopApi.undo(identifier, check.token, () => {})
+        const summary = await desktopApi.undo(identifier, check.token, (event) => {
+          this.undoProgress = event
+        })
         await this.select(identifier)
         await this.load()
+        this.undoSummary = summary
         return true
       } catch (error) {
         this.undoError = error instanceof Error ? error.message : String(error)

@@ -58,6 +58,13 @@ describe('操作日志统一状态', () => {
     expect(store.selected).toBeNull()
   })
 
+  it('筛选范围覆盖日志模型的全部状态', async () => {
+    const source = await import('../components/history/OperationFilters.vue?raw')
+    for (const status of ['准备中', '执行中', '撤回检查失败', '撤回中']) {
+      expect(source.default).toContain(status)
+    }
+  })
+
   it('选择日志时同时读取详情和撤回安全状态', async () => {
     vi.spyOn(desktopApi, 'getOperation').mockResolvedValue(operation)
     vi.spyOn(desktopApi, 'checkUndo').mockResolvedValue(readyCheck)
@@ -100,5 +107,38 @@ describe('操作日志统一状态', () => {
     expect(store.selected?.status).toBe('已撤回')
     expect(store.undoCheck?.state).toBe('已撤回')
     expect(store.undoBusy).toBe(false)
+  })
+
+  it('撤回期间保留逐项进度并记录最终结果', async () => {
+    vi.spyOn(desktopApi, 'undo').mockImplementation(async (_identifier, _token, progress) => {
+      progress({
+        current: 2,
+        total: 3,
+        path: 'D:/资料/旧版/报告.txt',
+        outcome: '成功',
+        detail: '已恢复原名称',
+      })
+      return { succeeded: 2, failed: 1 }
+    })
+    vi.spyOn(desktopApi, 'getOperation').mockResolvedValue({ ...operation, status: '部分撤回' })
+    vi.spyOn(desktopApi, 'checkUndo').mockResolvedValue({
+      ...readyCheck,
+      state: '存在风险',
+      summary: '仍有 1 项需要处理。',
+    })
+    vi.spyOn(desktopApi, 'queryOperations').mockResolvedValue({ items: [], total: 0 })
+    const store = useHistoryStore()
+    store.selectedIdentifier = 'operation-1'
+    store.undoCheck = readyCheck
+
+    expect(await store.executeUndo()).toBe(true)
+    expect(store.undoProgress).toEqual({
+      current: 2,
+      total: 3,
+      path: 'D:/资料/旧版/报告.txt',
+      outcome: '成功',
+      detail: '已恢复原名称',
+    })
+    expect(store.undoSummary).toEqual({ succeeded: 2, failed: 1 })
   })
 })

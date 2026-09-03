@@ -56,7 +56,7 @@ const undoAlertType = computed(() => {
             type="primary"
             :loading="busy"
             @click="$emit('undo')"
-          >确认整批撤回</el-button>
+          >恢复这批原名称</el-button>
         </div>
 
         <el-alert

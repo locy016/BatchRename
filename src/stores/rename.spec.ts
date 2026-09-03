@@ -112,6 +112,31 @@ describe('工作流状态', () => {
     expect(store.items[0].source).toBe('D:/资料/匹配.txt')
   })
 
+  it('显示上限只裁剪表格且规则变化不缩小完整匹配统计', async () => {
+    const matched = Array.from({ length: 100 }, (_, index) => ({
+      source: `D:/资料/项目${index + 1}.txt`,
+      kind: '文件' as const,
+    }))
+    vi.spyOn(desktopApi, 'startScan').mockResolvedValue({
+      jobId: 'scan-many',
+      overview: { directories: 0, files: 150 },
+      page: { items: matched, total: 150, offset: 0, limit: 100 },
+      warnings: [],
+    })
+    const store = useRenameStore()
+    store.root = 'D:/资料'
+    store.search = '项目'
+    store.setPreviewLimit(25)
+
+    await store.scan()
+    expect(store.items).toHaveLength(25)
+    expect(store.summary.matched).toBe(150)
+
+    store.setReplacement('新版')
+    expect(store.items).toHaveLength(25)
+    expect(store.summary.matched).toBe(150)
+  })
+
   it('扫描结果为空时仍保持匹配结果语义', async () => {
     vi.spyOn(desktopApi, 'startScan').mockResolvedValue({
       jobId: 'empty-scan',

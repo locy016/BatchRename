@@ -16,7 +16,7 @@ pub fn check_undo(
 }
 
 #[tauri::command]
-pub fn undo_operation(
+pub async fn undo_operation(
     identifier: String,
     token: String,
     events: Channel<UndoProgress>,
@@ -26,11 +26,18 @@ pub fn undo_operation(
     let handle = manager
         .begin(JobType::Undo)
         .map_err(|error| error.to_string())?;
-    let mut operation = store.load(&identifier).map_err(|error| error.to_string())?;
-    let result = execute_undo(&mut operation, &token, store.inner(), |event| {
-        let _ = events.send(event);
+    let manager = manager.inner().clone();
+    let job_identifier = handle.id;
+    let store = store.inner().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let mut operation = store.load(&identifier).map_err(|error| error.to_string())?;
+        execute_undo(&mut operation, &token, &store, |event| {
+            let _ = events.send(event);
+        })
+        .map_err(|error| error.to_string())
     })
-    .map_err(|error| error.to_string());
-    manager.finish(&handle.id);
-    result
+    .await
+    .map_err(|error| format!("撤回任务异常结束：{error}"));
+    manager.finish(&job_identifier);
+    result?
 }

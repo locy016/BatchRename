@@ -40,7 +40,10 @@ pub struct OperationSummary {
     pub status: OperationStatus,
     pub item_count: usize,
     pub success_count: usize,
+    pub skipped_count: usize,
     pub failed_count: usize,
+    pub undone_count: usize,
+    pub pending_undo_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -223,10 +226,28 @@ fn summary(operation: &OperationLogV1) -> OperationSummary {
             .iter()
             .filter(|item| item.outcome == "成功")
             .count(),
+        skipped_count: operation
+            .items
+            .iter()
+            .filter(|item| item.outcome == "跳过")
+            .count(),
         failed_count: operation
             .items
             .iter()
             .filter(|item| item.outcome == "失败")
+            .count(),
+        undone_count: operation
+            .items
+            .iter()
+            .filter(|item| item.undo_status == crate::domain::models::UndoStatus::Undone)
+            .count(),
+        pending_undo_count: operation
+            .items
+            .iter()
+            .filter(|item| {
+                item.outcome == "成功"
+                    && item.undo_status != crate::domain::models::UndoStatus::Undone
+            })
             .count(),
     }
 }

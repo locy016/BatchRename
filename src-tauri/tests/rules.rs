@@ -35,7 +35,7 @@ fn fixture_set() -> RuleFixtureSet {
 }
 
 #[test]
-fn reproduces_all_python_rule_fixtures() {
+fn reproduces_all_stable_rule_fixtures() {
     let fixtures = fixture_set();
     assert_eq!(fixtures.schema_version, 1);
 

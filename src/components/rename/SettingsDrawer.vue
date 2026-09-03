@@ -10,6 +10,10 @@ const depth = computed({
   get: () => store.maxDepth ?? 0,
   set: (value: number | undefined) => store.setMaxDepth(value ?? 0),
 })
+const previewLimit = computed({
+  get: () => store.previewLimit,
+  set: (value: number | undefined) => store.setPreviewLimit(value),
+})
 </script>
 
 <template>
@@ -39,6 +43,16 @@ const depth = computed({
         <el-checkbox v-model="store.includeFiles" border @change="store.invalidateScan">
           文件名称
         </el-checkbox>
+      </div>
+    </section>
+
+    <section class="setting-card">
+      <div class="section-title">
+        <div>
+          <h3>结果显示</h3>
+          <p>只控制表格显示条数；完整统计和最终执行范围不会改变。</p>
+        </div>
+        <el-input-number v-model="previewLimit" :min="1" :max="100" controls-position="right" />
       </div>
     </section>
 

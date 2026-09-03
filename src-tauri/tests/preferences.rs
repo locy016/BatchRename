@@ -10,7 +10,7 @@ fn missing_and_corrupt_settings_fall_back_to_system() {
     assert_eq!(s.load().appearance, Appearance::System)
 }
 #[test]
-fn reads_and_saves_python_appearance_field() {
+fn reads_and_saves_legacy_appearance_field() {
     let d = tempdir().unwrap();
     let s = PreferencesStore::new(d.path().join("settings.json"));
     fs::write(d.path().join("settings.json"), r#"{"appearance":"dark"}"#).unwrap();

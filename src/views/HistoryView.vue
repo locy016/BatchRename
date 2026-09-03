@@ -4,11 +4,21 @@ import { useHistoryStore } from '../stores/history'
 import OperationFilters from '../components/history/OperationFilters.vue'
 import OperationList from '../components/history/OperationList.vue'
 import OperationDetails from '../components/history/OperationDetails.vue'
+import UndoConfirmation from '../components/history/UndoConfirmation.vue'
+import UndoProgressDialog from '../components/history/UndoProgressDialog.vue'
+import UndoResultDialog from '../components/history/UndoResultDialog.vue'
 
 const store = useHistoryStore()
 const query = ref('')
 const status = ref('')
+const undoConfirming = ref(false)
+const undoCompleted = ref(false)
 const load = () => store.load(query.value, status.value || null)
+
+async function executeUndo() {
+  undoConfirming.value = false
+  if (await store.executeUndo()) undoCompleted.value = true
+}
 
 onMounted(load)
 </script>
@@ -44,9 +54,17 @@ onMounted(load)
         :undo-check="store.undoCheck"
         :busy="store.selectionBusy || store.undoBusy"
         :undo-error="store.undoError"
-        @undo="store.executeUndo"
+        @undo="undoConfirming = true"
       />
     </div>
+    <UndoConfirmation
+      v-model="undoConfirming"
+      :root="store.selected?.root ?? ''"
+      :total="store.undoCheck?.items.length ?? 0"
+      @confirm="executeUndo"
+    />
+    <UndoProgressDialog :model-value="store.undoBusy" :progress="store.undoProgress" />
+    <UndoResultDialog v-model="undoCompleted" :summary="store.undoSummary" />
   </section>
 </template>
 
