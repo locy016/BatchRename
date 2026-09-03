@@ -15,10 +15,14 @@ describe('重命名流程栏', () => {
     expect(wrapper.findAll('ol > li')).toHaveLength(4)
     expect(wrapper.text()).not.toContain('完成预览后才会允许执行')
     expect(wrapper.text()).not.toContain('扫描范围')
+    expect(wrapper.text()).not.toContain('使用正则表达式')
     expect(wrapper.text()).toContain('1　选择目录')
     expect(wrapper.text()).toContain('2　查找内容')
     expect(wrapper.text()).toContain('3　替换与预览')
     expect(wrapper.text()).toContain('4　确认执行')
+    expect(wrapper.find('[title="查看当前查找说明"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="preview-row"]').text()).toContain('预览')
+    expect(wrapper.get('[data-testid="preview-row"]').text()).not.toContain('生成结果预览')
   })
 
   it('在查找输入框按回车触发扫描', async () => {
