@@ -7,6 +7,7 @@ export interface ResultDirectory {
 }
 
 export interface ResultRow extends DisplayItem {
+  index: number
   directory: ResultDirectory
   oldName: string
   newName: string
@@ -28,13 +29,14 @@ function fileName(path: string) {
 }
 
 export function createResultRows(items: DisplayItem[], root: string): ResultRow[] {
-  return items.map((item) => {
+  return items.map((item, index) => {
     const relativeParts = segments(relativeSource(item.source, root))
     const parent = relativeParts.slice(0, -1).join('\\')
     const isRoot = parent.length === 0
-    const path = isRoot ? '.' : parent
+    const path = isRoot ? '根目录' : parent
     return {
       ...item,
+      index: index + 1,
       directory: {
         isRoot,
         path,

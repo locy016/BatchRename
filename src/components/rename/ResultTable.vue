@@ -32,11 +32,14 @@ function statusClass(status: string) {
 
 <template>
   <el-table
+    class="result-table"
     :data="rows"
     height="100%"
     empty-text="输入查找内容并扫描后，匹配结果会显示在这里"
   >
-    <el-table-column label="类型" width="58" align="center">
+    <el-table-column prop="index" label="序号" width="58" align="center" />
+
+    <el-table-column label="类型" width="52" align="center">
       <template #default="scope">
         <el-tooltip :content="scope.row.kind" :show-after="250">
           <el-icon class="type-icon" :aria-label="scope.row.kind">
@@ -47,14 +50,14 @@ function statusClass(status: string) {
       </template>
     </el-table-column>
 
-    <el-table-column label="所在目录" width="76" align="center">
+    <el-table-column label="所在目录" width="104" align="center">
       <template #default="scope">
         <span
           v-if="scope.row.directory.isRoot"
           data-testid="root-directory"
           class="root-directory"
           aria-label="根目录"
-        >.</span>
+        >根目录</span>
         <el-tooltip v-else :content="scope.row.directory.path" placement="top" :show-after="180">
           <span
             data-testid="nested-directory"
@@ -69,14 +72,14 @@ function statusClass(status: string) {
       </template>
     </el-table-column>
 
-    <el-table-column prop="oldName" label="原名称" min-width="180" show-overflow-tooltip />
-    <el-table-column label="新名称" min-width="200" show-overflow-tooltip>
+    <el-table-column prop="oldName" label="原名称" min-width="210" show-overflow-tooltip />
+    <el-table-column label="新名称" min-width="230" show-overflow-tooltip>
       <template #default="scope">
         <span class="new-name">{{ scope.row.newName }}</span>
       </template>
     </el-table-column>
 
-    <el-table-column label="状态" width="64" align="center">
+    <el-table-column label="状态" width="58" align="center">
       <template #default="scope">
         <el-tooltip :content="scope.row.status" :show-after="250">
           <el-icon class="status-icon" :class="statusClass(scope.row.status)" :aria-label="scope.row.status">
@@ -86,7 +89,7 @@ function statusClass(status: string) {
       </template>
     </el-table-column>
 
-    <el-table-column label="说明" width="64" align="center">
+    <el-table-column label="说明" width="58" align="center">
       <template #default="scope">
         <el-tooltip :content="scope.row.detail" :show-after="250">
           <el-button text circle aria-label="查看说明" @click="emit('details', scope.row)">
@@ -99,6 +102,14 @@ function statusClass(status: string) {
 </template>
 
 <style scoped>
+.result-table {
+  min-height: 0;
+}
+
+:deep(.el-table__header .cell) {
+  white-space: nowrap;
+}
+
 .type-icon,
 .status-icon {
   font-size: 17px;
@@ -124,6 +135,11 @@ function statusClass(status: string) {
 .directory-icon:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+.root-directory {
+  white-space: nowrap;
+  font-size: 12px;
 }
 
 .new-name,
