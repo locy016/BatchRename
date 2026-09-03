@@ -11,9 +11,11 @@ export interface DisplayItem {
   source: string
   target: string
   kind: ItemKind
-  status: CandidateStatus | '已匹配'
+  status: CandidateStatus | '目录项目' | '已匹配'
   detail: string
 }
+
+export type ResultMode = 'empty' | 'directory' | 'matches' | 'preview'
 
 const emptySummary = (): PreviewSummary => ({ matched: 0, ready: 0, unchanged: 0, conflicts: 0, invalid: 0 })
 const emptyOverview = (): DirectoryOverview => ({ directories: 0, files: 0 })
@@ -22,6 +24,12 @@ const displayMatches = (items: MatchedItem[]): DisplayItem[] => items.map((item)
   target: item.source,
   status: '已匹配',
   detail: '名称符合当前查找规则；填写替换内容后可生成重命名预览。',
+}))
+const displayRootItems = (items: MatchedItem[]): DisplayItem[] => items.map((item) => ({
+  ...item,
+  target: item.source,
+  status: '目录项目',
+  detail: '根目录中的项目；输入查找内容并扫描后可筛选符合项。',
 }))
 
 export const useRenameStore = defineStore('rename', {
@@ -37,7 +45,11 @@ export const useRenameStore = defineStore('rename', {
     scanJobId: null as string | null,
     scanGeneration: 0,
     overviewGeneration: 0,
+    rootListingGeneration: 0,
     previewValid: false,
+    resultMode: 'empty' as ResultMode,
+    rootItems: [] as MatchedItem[],
+    rootTotal: 0,
     matchedItems: [] as MatchedItem[],
     items: [] as DisplayItem[],
     summary: emptySummary(),
@@ -67,19 +79,34 @@ export const useRenameStore = defineStore('rename', {
       this.scanJobId = null
       this.previewValid = false
       this.matchedItems = []
-      this.items = []
+      if (this.rootItems.length || this.rootTotal > 0) {
+        this.resultMode = 'directory'
+        this.items = displayRootItems(this.rootItems)
+      } else {
+        this.resultMode = 'empty'
+        this.items = []
+      }
       this.summary = emptySummary()
       this.errorMessage = ''
     },
     invalidatePreview() {
       this.previewValid = false
-      this.items = displayMatches(this.matchedItems)
+      if (this.scanJobId) {
+        this.items = displayMatches(this.matchedItems)
+        this.resultMode = 'matches'
+      } else {
+        this.items = displayRootItems(this.rootItems)
+        this.resultMode = this.root ? 'directory' : 'empty'
+      }
       this.summary = { ...emptySummary(), matched: this.matchedItems.length }
     },
     setRoot(value: string) {
       if (this.root !== value) {
         this.root = value
         this.overview = emptyOverview()
+        this.rootListingGeneration += 1
+        this.rootItems = []
+        this.rootTotal = 0
         this.invalidateScan()
       }
     },
@@ -122,11 +149,28 @@ export const useRenameStore = defineStore('rename', {
         if (generation === this.overviewGeneration) this.overviewBusy = false
       }
     },
+    async refreshRootItems() {
+      if (!this.root) return
+      const generation = ++this.rootListingGeneration
+      const root = this.root
+      try {
+        const page = await desktopApi.listRootItems(root, 100)
+        if (generation !== this.rootListingGeneration || root !== this.root) return
+        this.rootItems = page.items
+        this.rootTotal = page.total
+        this.items = displayRootItems(page.items)
+        this.resultMode = 'directory'
+      } catch (error) {
+        if (generation === this.rootListingGeneration) {
+          this.errorMessage = error instanceof Error ? error.message : String(error)
+        }
+      }
+    },
     async chooseRoot() {
       const value = await desktopApi.chooseDirectory()
       if (!value) return
       this.setRoot(value)
-      await this.refreshOverview()
+      await Promise.all([this.refreshRootItems(), this.refreshOverview()])
     },
     async scan() {
       if (!this.canScan) return
@@ -134,7 +178,6 @@ export const useRenameStore = defineStore('rename', {
       this.busy = 'scanning'
       this.errorMessage = ''
       this.previewValid = false
-      this.items = []
       this.matchedItems = []
       this.summary = emptySummary()
       this.progress = {
@@ -166,6 +209,7 @@ export const useRenameStore = defineStore('rename', {
         }
         this.matchedItems = result.page.items
         this.items = displayMatches(result.page.items)
+        this.resultMode = 'matches'
         this.summary = { ...emptySummary(), matched: result.page.total }
         this.warnings = result.warnings
         this.progress = {
@@ -190,6 +234,7 @@ export const useRenameStore = defineStore('rename', {
       try {
         const page = await desktopApi.buildPreview(this.scanJobId, this.replacement, this.renameExtension)
         this.items = page.items
+        this.resultMode = 'preview'
         this.summary = page.summary
         this.warnings = page.warnings
         this.previewValid = true

@@ -52,14 +52,83 @@ describe('工作流状态', () => {
 
   it('目录选定后立即读取文件夹和文件数量', async () => {
     vi.spyOn(desktopApi, 'chooseDirectory').mockResolvedValue('D:/资料')
+    const listRootItems = vi.spyOn(desktopApi, 'listRootItems').mockResolvedValue({
+      items: [
+        { source: 'D:/资料/项目目录', kind: '文件夹' },
+        { source: 'D:/资料/说明.txt', kind: '文件' },
+      ],
+      total: 2,
+      offset: 0,
+      limit: 100,
+    })
     const inspectDirectory = vi.spyOn(desktopApi, 'inspectDirectory')
       .mockResolvedValue({ directories: 3, files: 7 })
     const store = useRenameStore()
 
     await store.chooseRoot()
 
+    expect(listRootItems).toHaveBeenCalledWith('D:/资料', 100)
     expect(inspectDirectory).toHaveBeenCalledWith('D:/资料', null)
     expect((store as unknown as { overview: object }).overview).toEqual({ directories: 3, files: 7 })
+    expect(store.resultMode).toBe('directory')
+    expect(store.items.map((item) => item.source)).toEqual([
+      'D:/资料/项目目录',
+      'D:/资料/说明.txt',
+    ])
+  })
+
+  it('输入查找内容前保留根目录列表，扫描后切换为匹配结果', async () => {
+    vi.spyOn(desktopApi, 'startScan').mockResolvedValue({
+      jobId: 'scan-job',
+      overview: { directories: 1, files: 1 },
+      page: {
+        items: [{ source: 'D:/资料/匹配.txt', kind: '文件' }],
+        total: 1,
+        offset: 0,
+        limit: 100,
+      },
+      warnings: [],
+    })
+    const store = useRenameStore()
+    store.root = 'D:/资料'
+    store.resultMode = 'directory'
+    store.rootItems = [{ source: 'D:/资料/说明.txt', kind: '文件' }]
+    store.items = [{
+      source: 'D:/资料/说明.txt',
+      target: 'D:/资料/说明.txt',
+      kind: '文件',
+      status: '目录项目',
+      detail: '根目录内容',
+    }]
+
+    store.setSearch('匹配')
+
+    expect(store.resultMode).toBe('directory')
+    expect(store.items[0].source).toBe('D:/资料/说明.txt')
+
+    await store.scan()
+
+    expect(store.resultMode).toBe('matches')
+    expect(store.items[0].source).toBe('D:/资料/匹配.txt')
+  })
+
+  it('扫描结果为空时仍保持匹配结果语义', async () => {
+    vi.spyOn(desktopApi, 'startScan').mockResolvedValue({
+      jobId: 'empty-scan',
+      overview: { directories: 1, files: 1 },
+      page: { items: [], total: 0, offset: 0, limit: 100 },
+      warnings: [],
+    })
+    const store = useRenameStore()
+    store.root = 'D:/资料'
+    store.search = '不存在'
+    store.rootItems = [{ source: 'D:/资料/说明.txt', kind: '文件' }]
+
+    await store.scan()
+    store.setReplacement('新名称')
+
+    expect(store.resultMode).toBe('matches')
+    expect(store.items).toEqual([])
   })
 
   it('快速完成的扫描不会因任务编号返回较晚而丢失结果', async () => {
@@ -98,6 +167,7 @@ describe('工作流状态', () => {
     await store.scan()
 
     expect(store.busy).toBe('')
+    expect(store.resultMode).toBe('matches')
     expect(store.summary.matched).toBe(2)
     expect(store.items).toEqual(matchedItems)
     expect((store as unknown as { overview: object }).overview).toEqual({ directories: 2, files: 3 })
