@@ -5,7 +5,9 @@ use tauri::State;
 use tauri::ipc::Channel;
 
 use crate::domain::models::{DirectoryOverview, MatchOptions, MatchPage, ScanProgress, ScanResult};
-use crate::services::scanner::{inspect_directory as count_directory, search_matches};
+use crate::services::scanner::{
+    inspect_directory as count_directory, list_root_items as read_root_items, search_matches,
+};
 use crate::state::job_manager::{CancellationToken, JobManager, JobType};
 
 #[tauri::command]
@@ -94,6 +96,15 @@ pub async fn inspect_directory(
     })
     .await
     .map_err(|error| format!("目录统计异常结束：{error}"))?
+}
+
+#[tauri::command]
+pub async fn list_root_items(root: PathBuf, limit: usize) -> Result<MatchPage, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        read_root_items(&root, limit).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| format!("目录内容读取异常结束：{error}"))?
 }
 
 #[tauri::command]

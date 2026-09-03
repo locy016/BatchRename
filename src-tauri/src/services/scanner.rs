@@ -3,10 +3,45 @@ use std::fs;
 
 use crate::domain::errors::DomainError;
 use crate::domain::models::{
-    DirectoryOverview, ItemKind, MatchOptions, MatchSnapshot, MatchedItem, ScanProgress,
+    DirectoryOverview, ItemKind, MatchOptions, MatchPage, MatchSnapshot, MatchedItem, ScanProgress,
 };
 use crate::domain::rules::RenameRule;
 use crate::state::job_manager::CancellationToken;
+
+pub fn list_root_items(root: &std::path::Path, limit: usize) -> Result<MatchPage, DomainError> {
+    if !root.is_dir() {
+        return Err(DomainError::InvalidRoot);
+    }
+    let entries = fs::read_dir(root).map_err(|error| DomainError::Io(error.to_string()))?;
+    let mut items: Vec<_> = entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let kind = match entry.file_type().ok()? {
+                value if value.is_symlink() => return None,
+                value if value.is_dir() => ItemKind::Directory,
+                value if value.is_file() => ItemKind::File,
+                _ => return None,
+            };
+            Some(MatchedItem {
+                source: entry.path(),
+                kind,
+            })
+        })
+        .collect();
+    items.sort_by(|left, right| {
+        kind_rank(left.kind)
+            .cmp(&kind_rank(right.kind))
+            .then_with(|| natural_compare(&file_name(&left.source), &file_name(&right.source)))
+    });
+    let total = items.len();
+    items.truncate(limit);
+    Ok(MatchPage {
+        items,
+        total,
+        offset: 0,
+        limit,
+    })
+}
 
 pub fn search_matches(
     options: &MatchOptions,

@@ -84,6 +84,7 @@ export interface UndoCheck {
 export interface DesktopApi {
   chooseDirectory(): Promise<string | null>
   inspectDirectory(root: string, maxDepth: number | null): Promise<DirectoryOverview>
+  listRootItems(root: string, limit: number): Promise<MatchPage>
   startScan(options: MatchOptions, onProgress: (event: ScanProgress) => void): Promise<ScanResult>
   cancelActiveJob(): Promise<void>
   buildPreview(jobId: string, replacement: string, renameExtension: boolean): Promise<PreviewPage>
@@ -118,6 +119,7 @@ export const desktopApi: DesktopApi = {
     return typeof value === 'string' ? value : null
   },
   inspectDirectory: (root, maxDepth) => desktopOnly('inspect_directory', { root, maxDepth }),
+  listRootItems: (root, limit) => desktopOnly('list_root_items', { root, limit }),
   startScan: (options, handler) => desktopOnly('start_scan', { options, events: events(handler) }),
   cancelActiveJob: () => desktopOnly('cancel_active_job'),
   buildPreview: (jobId, replacement, renameExtension) => desktopOnly('build_rename_preview', { jobId, replacement, renameExtension }),

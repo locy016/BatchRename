@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use batch_rename_lib::domain::errors::DomainError;
 use batch_rename_lib::domain::models::{ItemKind, MatchOptions};
-use batch_rename_lib::services::scanner::{inspect_directory, search_matches};
+use batch_rename_lib::services::scanner::{inspect_directory, list_root_items, search_matches};
 use batch_rename_lib::state::job_manager::{CancellationToken, JobManager, JobType};
 use tempfile::tempdir;
 
@@ -16,6 +16,35 @@ fn options(root: &std::path::Path) -> MatchOptions {
         include_files: true,
         include_dirs: true,
     }
+}
+
+#[test]
+fn lists_only_root_items_with_kind_and_natural_order() {
+    let root = tempdir().unwrap();
+    fs::create_dir(root.path().join("目录2")).unwrap();
+    fs::create_dir(root.path().join("目录10")).unwrap();
+    fs::write(root.path().join("文件2.txt"), "").unwrap();
+    fs::write(root.path().join("文件10.txt"), "").unwrap();
+    fs::write(root.path().join("目录2").join("深层文件.txt"), "").unwrap();
+
+    let listing = list_root_items(root.path(), 3).unwrap();
+    let names: Vec<_> = listing
+        .items
+        .iter()
+        .map(|item| {
+            item.source
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+
+    assert_eq!(listing.total, 4);
+    assert_eq!(listing.limit, 3);
+    assert_eq!(names, vec!["目录2", "目录10", "文件2.txt"]);
+    assert_eq!(listing.items[0].kind, ItemKind::Directory);
+    assert_eq!(listing.items[2].kind, ItemKind::File);
 }
 
 #[test]

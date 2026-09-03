@@ -13,6 +13,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::scan::start_scan,
             commands::scan::inspect_directory,
+            commands::scan::list_root_items,
             commands::scan::cancel_active_job,
             commands::preview::build_rename_preview,
             commands::preview::get_preview_page,
