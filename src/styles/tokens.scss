@@ -1,1 +1,64 @@
-:root{--app-bg:#f7f8fa;--surface:#fff;--surface-soft:#f2f4f7;--text:#172033;--muted:#667085;--border:#e4e7ec;--primary:#2563eb;--primary-soft:#eff6ff;--success:#16a34a;--warning:#d97706;--danger:#dc2626;--radius:12px;--shadow:0 12px 32px rgba(16,24,40,.1);--rail:330px;color-scheme:light}:root[data-theme=dark]{--app-bg:#0f141f;--surface:#171e2b;--surface-soft:#202938;--text:#edf2f7;--muted:#a7b0c0;--border:#303a4b;--primary:#6ea8fe;--primary-soft:#17294b;--shadow:0 16px 42px rgba(0,0,0,.36);color-scheme:dark}
+:root {
+  --app-bg: #f5f7fa;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-soft: #f0f3f7;
+  --surface-hover: #e9edf4;
+  --surface-active: #e2e8f2;
+  --text: #172033;
+  --text-secondary: #465166;
+  --muted: #687386;
+  --border: #dfe4ec;
+  --border-strong: #cbd3df;
+  --primary: #4f5bd5;
+  --primary-hover: #4651c4;
+  --primary-soft: #eef0ff;
+  --on-primary: #ffffff;
+  --success: #168653;
+  --success-soft: #eaf8f1;
+  --warning: #c56a10;
+  --warning-soft: #fff4e5;
+  --danger: #d13c4b;
+  --danger-soft: #fff0f1;
+  --overlay: rgba(17, 24, 39, 0.44);
+  --focus-ring: rgba(79, 91, 213, 0.24);
+  --scrollbar: #bdc6d3;
+  --scrollbar-hover: #929eae;
+  --radius: 12px;
+  --radius-large: 16px;
+  --shadow: 0 16px 40px rgba(22, 32, 51, 0.12);
+  --shadow-float: 0 24px 64px rgba(22, 32, 51, 0.18);
+  --rail: 350px;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --app-bg: #0f141f;
+  --surface: #171e2b;
+  --surface-raised: #1b2433;
+  --surface-soft: #202938;
+  --surface-hover: #283345;
+  --surface-active: #313d51;
+  --text: #edf2f7;
+  --text-secondary: #c4ccda;
+  --muted: #98a4b7;
+  --border: #303b4d;
+  --border-strong: #445066;
+  --primary: #8490ff;
+  --primary-hover: #98a2ff;
+  --primary-soft: #252d58;
+  --on-primary: #0f1426;
+  --success: #4fd19a;
+  --success-soft: #173c31;
+  --warning: #f0a558;
+  --warning-soft: #46311f;
+  --danger: #ff7c89;
+  --danger-soft: #47252d;
+  --overlay: rgba(2, 6, 12, 0.72);
+  --focus-ring: rgba(132, 144, 255, 0.32);
+  --scrollbar: #455268;
+  --scrollbar-hover: #64728a;
+  --shadow: 0 18px 46px rgba(0, 0, 0, 0.36);
+  --shadow-float: 0 28px 74px rgba(0, 0, 0, 0.52);
+  color-scheme: dark;
+}

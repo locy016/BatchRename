@@ -1,1 +1,143 @@
-.el-button{border-radius:9px;font-weight:600}.el-input__wrapper,.el-select__wrapper{border-radius:9px;box-shadow:0 0 0 1px var(--border) inset!important}.el-dialog,.el-drawer{background:var(--surface);color:var(--text)}.el-progress-bar__outer{background:var(--surface-soft)}
+:root {
+  --el-color-primary: var(--primary);
+  --el-color-primary-light-3: color-mix(in srgb, var(--primary) 72%, var(--surface));
+  --el-color-primary-light-5: color-mix(in srgb, var(--primary) 52%, var(--surface));
+  --el-color-primary-light-7: color-mix(in srgb, var(--primary) 30%, var(--surface));
+  --el-color-primary-light-8: color-mix(in srgb, var(--primary) 20%, var(--surface));
+  --el-color-primary-light-9: var(--primary-soft);
+  --el-color-primary-dark-2: var(--primary-hover);
+  --el-color-success: var(--success);
+  --el-color-warning: var(--warning);
+  --el-color-danger: var(--danger);
+  --el-bg-color: var(--surface);
+  --el-bg-color-page: var(--app-bg);
+  --el-bg-color-overlay: var(--surface-raised);
+  --el-text-color-primary: var(--text);
+  --el-text-color-regular: var(--text-secondary);
+  --el-text-color-secondary: var(--muted);
+  --el-text-color-placeholder: var(--muted);
+  --el-text-color-disabled: color-mix(in srgb, var(--muted) 66%, transparent);
+  --el-border-color: var(--border);
+  --el-border-color-light: color-mix(in srgb, var(--border) 82%, transparent);
+  --el-border-color-lighter: color-mix(in srgb, var(--border) 62%, transparent);
+  --el-border-color-extra-light: color-mix(in srgb, var(--border) 42%, transparent);
+  --el-border-color-dark: var(--border-strong);
+  --el-border-color-darker: var(--border-strong);
+  --el-fill-color: var(--surface-hover);
+  --el-fill-color-light: var(--surface-soft);
+  --el-fill-color-lighter: color-mix(in srgb, var(--surface-soft) 72%, transparent);
+  --el-fill-color-extra-light: color-mix(in srgb, var(--surface-soft) 48%, transparent);
+  --el-fill-color-dark: var(--surface-active);
+  --el-fill-color-darker: var(--surface-active);
+  --el-fill-color-blank: var(--surface);
+  --el-mask-color: var(--overlay);
+  --el-mask-color-extra-light: color-mix(in srgb, var(--overlay) 44%, transparent);
+  --el-box-shadow: var(--shadow);
+  --el-box-shadow-light: var(--shadow);
+  --el-box-shadow-lighter: 0 8px 24px color-mix(in srgb, var(--overlay) 20%, transparent);
+  --el-border-radius-base: 9px;
+}
+
+.el-button {
+  border-radius: 9px;
+  font-weight: 650;
+}
+
+.el-button:not(.is-text):focus-visible,
+.el-input__wrapper:focus-within,
+.el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 3px var(--focus-ring) !important;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-input-number,
+.el-checkbox.is-bordered {
+  border-color: var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border) inset !important;
+}
+
+.el-input-number .el-input__wrapper {
+  box-shadow: none !important;
+}
+
+.el-overlay {
+  background: var(--overlay) !important;
+}
+
+.el-dialog,
+.el-drawer {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-float);
+}
+
+.el-dialog {
+  border-radius: var(--radius-large);
+}
+
+.el-drawer__header {
+  margin: 0;
+  padding: 22px 22px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 750;
+}
+
+.el-drawer__body {
+  padding: 18px 22px 24px;
+  background: var(--app-bg);
+  color: var(--text);
+}
+
+.el-popper,
+.el-select-dropdown,
+.el-dropdown__popper {
+  border-color: var(--border) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text);
+  box-shadow: var(--shadow-float) !important;
+}
+
+.el-popper .el-popper__arrow::before {
+  border-color: var(--border) !important;
+  background: var(--surface-raised) !important;
+}
+
+.el-table {
+  --el-table-bg-color: var(--surface);
+  --el-table-tr-bg-color: var(--surface);
+  --el-table-header-bg-color: var(--surface-soft);
+  --el-table-row-hover-bg-color: var(--surface-hover);
+  --el-table-border-color: var(--border);
+  --el-table-header-text-color: var(--muted);
+  --el-table-text-color: var(--text-secondary);
+  background: var(--surface);
+}
+
+.el-table th.el-table__cell {
+  font-weight: 700;
+}
+
+.el-progress-bar__outer,
+.el-scrollbar__thumb {
+  background: var(--surface-active);
+}
+
+.el-message-box,
+.el-message,
+.el-notification {
+  border-color: var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-float);
+}
+
+.el-alert {
+  --el-alert-bg-color: var(--primary-soft);
+  --el-alert-text-color: var(--text-secondary);
+  border: 1px solid color-mix(in srgb, var(--primary) 26%, var(--border));
+}
