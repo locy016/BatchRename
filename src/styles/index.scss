@@ -92,6 +92,17 @@ input {
   background: var(--primary);
 }
 
+.app-header .menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.app-header .menu-trigger.active {
+  color: var(--on-primary);
+  background: var(--primary);
+}
+
 .app-main {
   min-width: 0;
   min-height: 0;

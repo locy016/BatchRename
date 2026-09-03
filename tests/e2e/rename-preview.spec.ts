@@ -1,1 +1,1 @@
-import{test,expect}from'@playwright/test';test('工作台展示完整安全流程',async({page})=>{await page.goto('/#/rename');await expect(page.getByText('1　选择目录')).toBeVisible();await expect(page.getByText('6　确认执行')).toBeVisible();await expect(page.getByText('匹配：')).toBeVisible()})
+import{test,expect}from'@playwright/test';test('工作台展示紧凑安全流程',async({page})=>{await page.goto('/#/rename');await expect(page.getByText('1　选择目录')).toBeVisible();await expect(page.getByText('4　确认执行')).toBeVisible();await expect(page.getByText('匹配：')).toBeVisible()})
