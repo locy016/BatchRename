@@ -26,6 +26,21 @@ export interface ScanProgress {
   warning?: string
 }
 
+export interface ExecutionProgress {
+  current: number
+  total: number
+  relativePath: string
+  outcome: string
+  detail: string
+}
+
+export interface ExecutionSummary {
+  operationId: string
+  succeeded: number
+  skipped: number
+  failed: number
+}
+
 export interface MatchPage {
   items: MatchedItem[]
   total: number
@@ -89,7 +104,7 @@ export interface DesktopApi {
   cancelActiveJob(): Promise<void>
   buildPreview(jobId: string, replacement: string, renameExtension: boolean): Promise<PreviewPage>
   getPreviewPage(jobId: string, offset: number, limit: number): Promise<PreviewPage>
-  execute(jobId: string, options: object, onProgress: (event: object) => void): Promise<{ operationId: string; succeeded: number; skipped: number; failed: number }>
+  execute(jobId: string, options: object, onProgress: (event: ExecutionProgress) => void): Promise<ExecutionSummary>
   queryOperations(query: object): Promise<OperationPage>
   getOperation(identifier: string): Promise<OperationLogV1>
   checkUndo(identifier: string): Promise<UndoCheck>

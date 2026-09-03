@@ -172,4 +172,44 @@ describe('工作流状态', () => {
     expect(store.items).toEqual(matchedItems)
     expect((store as unknown as { overview: object }).overview).toEqual({ directories: 2, files: 3 })
   })
+
+  it('执行期间接收逐项进度并在成功后恢复可操作状态', async () => {
+    vi.spyOn(desktopApi, 'execute').mockImplementation(async (_jobId, _options, onProgress) => {
+      onProgress({
+        current: 1,
+        total: 2,
+        relativePath: '子目录/旧名称.txt',
+        outcome: '成功',
+        detail: '已完成重命名',
+      })
+      return { operationId: 'operation-1', succeeded: 2, skipped: 0, failed: 0 }
+    })
+    const store = useRenameStore()
+    store.scanJobId = 'scan-job'
+
+    const succeeded = await store.execute()
+
+    expect(succeeded).toBe(true)
+    expect(store.executionProgress).toEqual({
+      current: 1,
+      total: 2,
+      relativePath: '子目录/旧名称.txt',
+      outcome: '成功',
+      detail: '已完成重命名',
+    })
+    expect(store.lastOperationId).toBe('operation-1')
+    expect(store.busy).toBe('')
+  })
+
+  it('执行失败时关闭阻断状态并保留可读错误', async () => {
+    vi.spyOn(desktopApi, 'execute').mockRejectedValue(new Error('目标文件被占用'))
+    const store = useRenameStore()
+    store.scanJobId = 'scan-job'
+
+    const succeeded = await store.execute()
+
+    expect(succeeded).toBe(false)
+    expect(store.busy).toBe('')
+    expect(store.errorMessage).toBe('目标文件被占用')
+  })
 })

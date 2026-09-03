@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import {
   desktopApi,
   type DirectoryOverview,
+  type ExecutionProgress,
   type PreviewSummary,
   type ScanProgress,
 } from '../api/desktop'
@@ -19,6 +20,13 @@ export type ResultMode = 'empty' | 'directory' | 'matches' | 'preview'
 
 const emptySummary = (): PreviewSummary => ({ matched: 0, ready: 0, unchanged: 0, conflicts: 0, invalid: 0 })
 const emptyOverview = (): DirectoryOverview => ({ directories: 0, files: 0 })
+const emptyExecutionProgress = (): ExecutionProgress => ({
+  current: 0,
+  total: 0,
+  relativePath: '',
+  outcome: '',
+  detail: '',
+})
 const displayMatches = (items: MatchedItem[]): DisplayItem[] => items.map((item) => ({
   ...item,
   target: item.source,
@@ -63,6 +71,7 @@ export const useRenameStore = defineStore('rename', {
       scannedFileCount: 0, matchedTotal: 0,
     } as ScanProgress,
     lastOperationId: '',
+    executionProgress: emptyExecutionProgress(),
   }),
   getters: {
     canScan: (state) => !!state.root && !!state.search && !state.busy,
@@ -244,20 +253,31 @@ export const useRenameStore = defineStore('rename', {
         this.busy = ''
       }
     },
-    async execute() {
-      if (!this.scanJobId) return
+    async execute(): Promise<boolean> {
+      if (!this.scanJobId) return false
       this.busy = 'executing'
-      const result = await desktopApi.execute(this.scanJobId, {
-        search: this.search,
-        replacement: this.replacement,
-        useRegex: this.useRegex,
-        maxDepth: this.maxDepth,
-        includeFiles: this.includeFiles,
-        includeDirs: this.includeDirs,
-        renameExtension: this.renameExtension,
-      }, () => {})
-      this.lastOperationId = result.operationId
-      this.busy = ''
+      this.errorMessage = ''
+      this.executionProgress = emptyExecutionProgress()
+      try {
+        const result = await desktopApi.execute(this.scanJobId, {
+          search: this.search,
+          replacement: this.replacement,
+          useRegex: this.useRegex,
+          maxDepth: this.maxDepth,
+          includeFiles: this.includeFiles,
+          includeDirs: this.includeDirs,
+          renameExtension: this.renameExtension,
+        }, (event) => {
+          this.executionProgress = event
+        })
+        this.lastOperationId = result.operationId
+        return true
+      } catch (error) {
+        this.errorMessage = error instanceof Error ? error.message : String(error)
+        return false
+      } finally {
+        this.busy = ''
+      }
     },
   },
 })

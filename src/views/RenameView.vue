@@ -11,6 +11,7 @@ import RegexTemplateDrawer from '../components/rename/RegexTemplateDrawer.vue'
 import SettingsDrawer from '../components/rename/SettingsDrawer.vue'
 import ExecuteConfirmation from '../components/rename/ExecuteConfirmation.vue'
 import ExecutionDetails from '../components/rename/ExecutionDetails.vue'
+import ExecutionProgressDialog from '../components/rename/ExecutionProgressDialog.vue'
 
 const store = useRenameStore()
 const detail = ref<any>(null)
@@ -37,8 +38,8 @@ function openSettings() {
 
 async function execute() {
   confirming.value = false
-  await store.execute()
-  completed.value = true
+  const succeeded = await store.execute()
+  if (succeeded) completed.value = true
 }
 </script>
 
@@ -66,6 +67,10 @@ async function execute() {
     <RegexTemplateDrawer v-model="templates" />
     <SettingsDrawer v-model="settings" />
     <ExecuteConfirmation v-model="confirming" @confirm="execute" />
+    <ExecutionProgressDialog
+      :model-value="store.busy === 'executing'"
+      :progress="store.executionProgress"
+    />
     <ExecutionDetails v-model="completed" :operation-id="store.lastOperationId" />
   </div>
 </template>

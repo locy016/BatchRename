@@ -1,1 +1,22 @@
-<script setup lang="ts">defineProps<{modelValue:boolean;operationId:string}>();defineEmits(['update:modelValue'])</script><template><el-dialog :model-value="modelValue" title="操作完成" width="500" @close="$emit('update:modelValue',false)"><el-result icon="success" title="批量重命名已完成" sub-title="操作过程已经逐项写入日志，可在操作日志中查看或前往撤回管理。"><template #extra><code>{{operationId}}</code></template></el-result></el-dialog></template>
+<script setup lang="ts">
+defineProps<{ modelValue: boolean; operationId: string }>()
+defineEmits(['update:modelValue'])
+</script>
+
+<template>
+  <el-dialog
+    :model-value="modelValue"
+    title="处理完成"
+    width="500"
+    align-center
+    @close="$emit('update:modelValue', false)"
+  >
+    <el-result
+      icon="success"
+      title="文件名处理已经完成"
+      sub-title="每个项目的处理结果均已写入操作日志，需要时可在撤回管理中恢复。"
+    >
+      <template #extra><code>{{ operationId }}</code></template>
+    </el-result>
+  </el-dialog>
+</template>
