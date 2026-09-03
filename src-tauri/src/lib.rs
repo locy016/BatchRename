@@ -26,5 +26,5 @@ pub fn run() {
             commands::preferences::save_preferences
         ])
         .run(tauri::generate_context!())
-        .expect("批量重命名启动失败");
+        .expect("文件名管理启动失败");
 }

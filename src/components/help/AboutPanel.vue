@@ -1,7 +1,7 @@
 <template>
   <div class="about-content">
     <section class="content-section">
-      <div class="section-heading"><span>NOW</span><div><h2>当前能力</h2><p>围绕一次可靠的名称整理任务提供完整闭环。</p></div></div>
+      <div class="section-heading"><span>NOW</span><div><h2>当前能力</h2><p>围绕一次可靠的文件名管理任务提供完整闭环。</p></div></div>
       <div class="capability-grid">
         <article><h3>灵活匹配</h3><p>普通文本、经典正则模板、多层目录和独立文件类型范围。</p></article>
         <article><h3>安全预览</h3><p>名称变化、冲突、非法名称和无变化项目逐项可见。</p></article>
@@ -18,7 +18,7 @@
     <div class="details-grid">
       <section class="content-section">
         <h2>版本信息</h2>
-        <dl><div><dt>产品</dt><dd>BatchRename 批量重命名</dd></div><div><dt>版本</dt><dd>2.0.0 Alpha</dd></div><div><dt>平台</dt><dd>Windows 10 / 11</dd></div></dl>
+        <dl><div><dt>产品</dt><dd>文件名管理</dd></div><div><dt>版本</dt><dd>2.0.0 Alpha</dd></div><div><dt>平台</dt><dd>Windows 10 / 11</dd></div></dl>
       </section>
       <section class="content-section">
         <h2>数据位置</h2>

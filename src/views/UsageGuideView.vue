@@ -7,7 +7,7 @@ import UsageGuide from '../components/help/UsageGuide.vue'
     <header class="help-hero">
       <span class="eyebrow">GUIDE</span>
       <h1>使用说明</h1>
-      <p>从选择目录到安全执行，按四个步骤完成一次可检查、可记录、可撤回的批量重命名。</p>
+      <p>从浏览目录到安全执行，按四个步骤完成一次可检查、可记录、可撤回的文件名管理任务。</p>
       <div class="hero-points">
         <span>先扫描</span>
         <span>再预览</span>

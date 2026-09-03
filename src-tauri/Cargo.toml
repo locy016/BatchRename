@@ -1,7 +1,7 @@
 [package]
 name = "batch-rename"
 version = "2.0.0-alpha.1"
-description = "面向 Windows 多层目录的安全名称整理工具"
+description = "面向 Windows 多层目录的高效文件名管理工具"
 authors = ["locy016"]
 edition = "2024"
 

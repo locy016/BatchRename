@@ -21,7 +21,11 @@ describe('帮助页面', () => {
   it('关于页面独立呈现能力、版本、数据、安全和联系信息', () => {
     const wrapper = mount(AboutView)
 
-    expect(wrapper.get('h1').text()).toBe('关于')
+    expect(wrapper.get('h1').text()).toBe('关于文件名管理')
+    expect(wrapper.text()).toContain('文件名称管理')
+    expect(wrapper.text()).toContain('批量重命名')
+    expect(wrapper.text()).toContain('高效文件名管理')
+    expect(wrapper.text()).toContain('文件名管理工具')
     expect(wrapper.text()).toContain('2.0.0 Alpha')
     expect(wrapper.text()).toContain('当前能力')
     expect(wrapper.text()).toContain('后续方向')

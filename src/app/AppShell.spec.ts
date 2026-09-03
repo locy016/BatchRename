@@ -22,7 +22,8 @@ describe('AppShell', () => {
 
     const wrapper = mount(AppShell, { global: { plugins: [createPinia(), router, ElementPlus] } })
 
-    expect(wrapper.get('[data-testid="product-title"]').text()).toContain('批量重命名')
+    expect(wrapper.get('[data-testid="product-title"]').text()).toBe('文件名管理')
+    expect(wrapper.findAll('nav > a')[0].text()).toBe('文件名管理')
     expect(wrapper.findAll('nav > a').map((link) => link.attributes('href'))).toEqual([
       '/rename',
       '/history',

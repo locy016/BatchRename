@@ -6,7 +6,7 @@
         <div><h2>快速开始</h2><p>日常文本替换只需要四步，高级选项按需打开。</p></div>
       </div>
       <div class="step-grid">
-        <article><b>1</b><h3>选择目录</h3><p>目录选定后会立即统计扫描范围内的文件夹和文件。</p></article>
+        <article><b>1</b><h3>选择目录</h3><p>目录选定后会立即统计范围，并列出根目录中的文件夹和文件。</p></article>
         <article><b>2</b><h3>查找并扫描</h3><p>输入名称片段后点击扫描，或直接按回车。</p></article>
         <article><b>3</b><h3>替换并预览</h3><p>输入新内容后按回车，逐项核对新名称和状态。</p></article>
         <article><b>4</b><h3>确认执行</h3><p>只有安全预览中的可修改项目会进入确认环节。</p></article>
@@ -17,8 +17,8 @@
       <section class="content-section">
         <div class="section-heading"><span>02</span><div><h2>查找方式</h2><p>从简单文本开始，需要时再使用正则。</p></div></div>
         <div class="info-list">
-          <article><h3>普通文本</h3><p>适合替换固定词语、编号前缀或重复标记，不区分复杂语法。</p></article>
-          <article><h3>正则模板</h3><p>左下角打开正则模板，根据处理前后示例一键应用，无需记忆表达式。</p></article>
+          <article><h3>普通文本</h3><p>适合替换固定词语、编号前缀或重复标记；查找框后的提示图标会说明当前规则与范围。</p></article>
+          <article><h3>正则模板</h3><p>从左下角打开模板窗口，可开启正则模式并按处理前后示例一键应用，无需记忆表达式。</p></article>
           <article><h3>扫描设置</h3><p>在设置中选择文件夹、文件、扫描层级和扩展名保护。</p></article>
         </div>
       </section>
