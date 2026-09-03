@@ -50,3 +50,27 @@ test('路径提示层的文字与背景保持可读对比', async ({ page }) => 
 
   expect(colors.text).not.toBe(colors.background)
 })
+
+test('文件列表占满结果区剩余高度且统计栏固定在底部', async ({ page }) => {
+  await page.setViewportSize({ width: 1360, height: 840 })
+  await page.goto('/#/rename')
+  await expect(page.locator('.result-table')).toBeVisible()
+
+  const layout = await page.evaluate(() => {
+    const bounds = (selector: string) => {
+      const rect = document.querySelector(selector)!.getBoundingClientRect()
+      return { top: rect.top, bottom: rect.bottom, height: rect.height }
+    }
+    return {
+      results: bounds('.results'),
+      card: bounds('.table-card'),
+      table: bounds('.result-table'),
+      stats: bounds('.stats'),
+    }
+  })
+
+  expect(layout.card.height).toBeGreaterThan(600)
+  expect(layout.table.height).toBeGreaterThan(540)
+  expect(layout.results.bottom - layout.card.bottom).toBeCloseTo(18, 0)
+  expect(layout.card.bottom - layout.stats.bottom).toBeLessThanOrEqual(2)
+})

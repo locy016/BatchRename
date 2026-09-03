@@ -86,8 +86,8 @@ async function execute() {
 }
 
 .results {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   min-width: 0;
   min-height: 0;
@@ -98,6 +98,7 @@ async function execute() {
 .table-card {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
+  flex: 1 1 auto;
   min-height: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius);
