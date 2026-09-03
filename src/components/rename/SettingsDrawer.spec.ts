@@ -1,10 +1,19 @@
 import { createPinia } from 'pinia'
-import { mount } from '@vue/test-utils'
+import { mount, shallowMount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { describe, expect, it } from 'vitest'
 import SettingsDrawer from './SettingsDrawer.vue'
 
 describe('扫描与命名设置', () => {
+  it('使用明确像素宽度避免抽屉在宽屏中溢出', () => {
+    const wrapper = shallowMount(SettingsDrawer, {
+      props: { modelValue: true },
+      global: { plugins: [createPinia(), ElementPlus] },
+    })
+
+    expect(wrapper.findComponent({ name: 'ElDrawer' }).props('size')).toBe(420)
+  })
+
   it('集中管理扫描对象、扫描层级和扩展名保护', () => {
     const wrapper = mount(SettingsDrawer, {
       props: { modelValue: true },

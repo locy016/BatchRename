@@ -16,7 +16,7 @@ const depth = computed({
   <el-drawer
     :model-value="modelValue"
     title="扫描与命名设置"
-    size="420"
+    :size="420"
     class="settings-drawer"
     @close="$emit('update:modelValue', false)"
   >
