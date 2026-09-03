@@ -36,4 +36,19 @@ describe('重命名流程栏', () => {
 
     expect(scan).toHaveBeenCalledOnce()
   })
+
+  it('在替换输入框按回车生成结果预览', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = useRenameStore()
+    store.scanJobId = 'scan-job'
+    const preview = vi.spyOn(store, 'preview').mockResolvedValue()
+    const wrapper = mount(WorkflowRail, {
+      global: { plugins: [pinia, ElementPlus] },
+    })
+
+    await wrapper.get('input[placeholder="可留空以删除匹配片段"]').trigger('keyup.enter')
+
+    expect(preview).toHaveBeenCalledOnce()
+  })
 })
