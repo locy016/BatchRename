@@ -30,3 +30,23 @@ test('深色外观完整应用到设置抽屉', async ({ page }) => {
     })
     .toBeLessThanOrEqual(0)
 })
+
+test('路径提示层的文字与背景保持可读对比', async ({ page }) => {
+  await page.goto('/#/rename')
+  await page.evaluate(() => {
+    const tooltip = document.createElement('div')
+    tooltip.className = 'el-popper is-dark path-tooltip-test'
+    tooltip.textContent = '项目资料\\设计稿'
+    document.body.appendChild(tooltip)
+  })
+
+  const colors = await page.locator('.path-tooltip-test').evaluate((element) => {
+    const style = getComputedStyle(element)
+    return {
+      background: style.backgroundColor,
+      text: style.color,
+    }
+  })
+
+  expect(colors.text).not.toBe(colors.background)
+})

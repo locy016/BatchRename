@@ -97,14 +97,31 @@
 .el-select-dropdown,
 .el-dropdown__popper {
   border-color: var(--border) !important;
-  background: var(--surface-raised) !important;
-  color: var(--text);
   box-shadow: var(--shadow-float) !important;
 }
 
-.el-popper .el-popper__arrow::before {
+.el-popper.is-light,
+.el-select-dropdown,
+.el-dropdown__popper {
+  background: var(--surface-raised) !important;
+  color: var(--text);
+}
+
+.el-popper.is-dark {
+  --el-popper-bg-color-dark: var(--tooltip-bg);
+  border-color: var(--tooltip-bg) !important;
+  background: var(--tooltip-bg) !important;
+  color: var(--tooltip-text) !important;
+}
+
+.el-popper.is-light .el-popper__arrow::before {
   border-color: var(--border) !important;
   background: var(--surface-raised) !important;
+}
+
+.el-popper.is-dark .el-popper__arrow::before {
+  border-color: var(--tooltip-bg) !important;
+  background: var(--tooltip-bg) !important;
 }
 
 .el-table {
