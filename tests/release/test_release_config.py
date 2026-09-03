@@ -6,7 +6,7 @@ ROOT = Path(__file__).parents[2]
 def test_windows_release_configuration_is_complete():
     config = json.loads((ROOT / "src-tauri/tauri.conf.json").read_text(encoding="utf-8"))
     assert config["version"] == "2.0.0-alpha.1"
-    assert config["productName"] == "BatchRename"
+    assert config["productName"] == "文件名管理"
     assert config["bundle"]["targets"] == ["nsis"]
     assert config["bundle"]["icon"]
     assert "SimpChinese" in config["bundle"]["windows"]["nsis"]["languages"]
