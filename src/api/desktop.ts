@@ -64,10 +64,12 @@ export interface OperationSummary {
 
 export interface OperationPage { items: OperationSummary[]; total: number }
 
+export type UndoCheckState = '可撤回' | '存在风险' | '已撤回' | '不可用'
+
 export interface UndoCheck {
   operationId: string
   token: string
-  safe: boolean
+  state: UndoCheckState
   summary: string
   items: Array<{
     itemIndex: number

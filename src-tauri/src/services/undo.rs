@@ -3,21 +3,47 @@ use std::path::Path;
 
 use crate::domain::errors::DomainError;
 use crate::domain::models::{
-    ItemKind, OperationLogV1, OperationStatus, UndoCheckItem, UndoCheckResult, UndoProgress,
-    UndoStatus, UndoSummary,
+    ItemKind, OperationLogV1, OperationStatus, UndoCheckItem, UndoCheckResult, UndoCheckState,
+    UndoProgress, UndoStatus, UndoSummary,
 };
 use crate::services::executor::path_key;
 use crate::services::journal::OperationStore;
 
 pub fn preflight_undo(operation: &OperationLogV1) -> UndoCheckResult {
     let ordered = pending_order(operation);
-    if operation.status == OperationStatus::Corrupt || ordered.is_empty() {
+    if operation.status == OperationStatus::Corrupt {
         return UndoCheckResult {
             operation_id: operation.identifier.clone(),
             token: operation.updated_at.clone(),
             items: Vec::new(),
-            safe: false,
-            summary: "这次操作不可撤回，或已没有待恢复项目。".into(),
+            state: UndoCheckState::Unavailable,
+            summary: "操作记录已损坏，无法进行安全撤回。".into(),
+        };
+    }
+    if ordered.is_empty() {
+        let successful_items: Vec<_> = operation
+            .items
+            .iter()
+            .filter(|item| item.outcome == "成功")
+            .collect();
+        let completed = !successful_items.is_empty()
+            && successful_items
+                .iter()
+                .all(|item| item.undo_status == UndoStatus::Undone);
+        return UndoCheckResult {
+            operation_id: operation.identifier.clone(),
+            token: operation.updated_at.clone(),
+            items: Vec::new(),
+            state: if completed {
+                UndoCheckState::Completed
+            } else {
+                UndoCheckState::Unavailable
+            },
+            summary: if completed {
+                "这次操作已全部撤回，原名称已经恢复。".into()
+            } else {
+                "这次操作没有可撤回的成功项目。".into()
+            },
         };
     }
     let mut checks = Vec::new();
@@ -56,7 +82,11 @@ pub fn preflight_undo(operation: &OperationLogV1) -> UndoCheckResult {
     UndoCheckResult {
         operation_id: operation.identifier.clone(),
         token: operation.updated_at.clone(),
-        safe: unsafe_count == 0,
+        state: if unsafe_count == 0 {
+            UndoCheckState::Ready
+        } else {
+            UndoCheckState::Blocked
+        },
         summary: if unsafe_count == 0 {
             format!("检查通过，可撤回 {} 项。", checks.len())
         } else {
@@ -76,7 +106,7 @@ pub fn execute_undo(
         return Err(DomainError::StaleSnapshot);
     }
     let check = preflight_undo(operation);
-    if !check.safe {
+    if check.state != UndoCheckState::Ready {
         return Err(DomainError::Io(check.summary));
     }
     operation.status = OperationStatus::Undoing;

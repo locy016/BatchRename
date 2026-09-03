@@ -163,13 +163,25 @@ pub struct UndoCheckItem {
     pub detail: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UndoCheckState {
+    #[serde(rename = "可撤回")]
+    Ready,
+    #[serde(rename = "存在风险")]
+    Blocked,
+    #[serde(rename = "已撤回")]
+    Completed,
+    #[serde(rename = "不可用")]
+    Unavailable,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UndoCheckResult {
     pub operation_id: String,
     pub token: String,
     pub items: Vec<UndoCheckItem>,
-    pub safe: bool,
+    pub state: UndoCheckState,
     pub summary: String,
 }
 

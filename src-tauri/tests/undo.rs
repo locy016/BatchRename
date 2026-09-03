@@ -22,7 +22,7 @@ fn preflight_blocks_when_original_name_is_occupied() {
     fs::write(&operation.items[0].source, "占用").unwrap();
     fs::write(&operation.items[0].target, "当前").unwrap();
     let check = preflight_undo(&operation);
-    assert!(!check.safe);
+    assert_eq!(check.state, UndoCheckState::Blocked);
     assert!(check.items[0].detail.contains("占用"));
 }
 
@@ -61,9 +61,24 @@ fn restores_nested_items_in_reverse_and_marks_log_undone() {
     let store = OperationStore::new(logs.path());
     store.create(&operation).unwrap();
     let check = preflight_undo(&operation);
-    assert!(check.safe);
+    assert_eq!(check.state, UndoCheckState::Ready);
     let result = execute_undo(&mut operation, &check.token, &store, |_| {}).unwrap();
     assert_eq!(result.succeeded, 2);
     assert!(root.path().join("旧目录/旧文件.txt").exists());
     assert_eq!(operation.status, OperationStatus::Undone);
+}
+
+#[test]
+fn completed_undo_reports_a_completed_state_instead_of_an_error() {
+    let mut operation = fixture("operation-completed-v1.json");
+    operation.status = OperationStatus::Undone;
+    operation.items[0].undo_status = UndoStatus::Undone;
+    operation.items[0].undo_detail = "已恢复原名称".into();
+
+    let check = preflight_undo(&operation);
+    let payload = serde_json::to_value(&check).unwrap();
+
+    assert_eq!(payload["state"], "已撤回");
+    assert_eq!(check.summary, "这次操作已全部撤回，原名称已经恢复。");
+    assert!(check.items.is_empty());
 }
