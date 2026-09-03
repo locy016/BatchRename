@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"批量重命名主窗口的最小桌面能力","local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open","dialog:allow-message","dialog:allow-ask"]}}
+{"default":{"identifier":"default","description":"文件名管理主窗口的最小桌面能力","local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open","dialog:allow-message","dialog:allow-ask"]}}
