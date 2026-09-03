@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use batch_rename_lib::domain::errors::DomainError;
 use batch_rename_lib::domain::models::{ItemKind, MatchOptions};
-use batch_rename_lib::services::scanner::search_matches;
+use batch_rename_lib::services::scanner::{inspect_directory, search_matches};
 use batch_rename_lib::state::job_manager::{CancellationToken, JobManager, JobType};
 use tempfile::tempdir;
 
@@ -16,6 +16,31 @@ fn options(root: &std::path::Path) -> MatchOptions {
         include_files: true,
         include_dirs: true,
     }
+}
+
+#[test]
+fn directory_overview_uses_the_same_depth_rules_as_search() {
+    let root = tempdir().unwrap();
+    fs::create_dir(root.path().join("一级目录")).unwrap();
+    fs::create_dir(root.path().join("一级目录").join("二级目录")).unwrap();
+    fs::write(root.path().join("根文件.txt"), "").unwrap();
+    fs::write(root.path().join("一级目录").join("一级文件.txt"), "").unwrap();
+    fs::write(
+        root.path()
+            .join("一级目录")
+            .join("二级目录")
+            .join("二级文件.txt"),
+        "",
+    )
+    .unwrap();
+
+    let all = inspect_directory(root.path(), None, &CancellationToken::new()).unwrap();
+    assert_eq!(all.directories, 2);
+    assert_eq!(all.files, 3);
+
+    let first_level = inspect_directory(root.path(), Some(1), &CancellationToken::new()).unwrap();
+    assert_eq!(first_level.directories, 1);
+    assert_eq!(first_level.files, 1);
 }
 
 #[test]

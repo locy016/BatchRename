@@ -50,8 +50,36 @@ pub struct ScanProgress {
     pub job_id: String,
     pub phase: String,
     pub scanned_total: usize,
+    pub scanned_directory_count: usize,
+    pub scanned_file_count: usize,
     pub matched_total: usize,
     pub warning: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectoryOverview {
+    pub directories: usize,
+    pub files: usize,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatchPage {
+    pub items: Vec<MatchedItem>,
+    pub total: usize,
+    pub offset: usize,
+    pub limit: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanResult {
+    pub job_id: String,
+    pub overview: DirectoryOverview,
+    pub page: MatchPage,
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
