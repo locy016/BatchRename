@@ -1,1 +1,96 @@
-<script setup lang="ts">import{onMounted,ref}from'vue';import{useHistoryStore}from'../stores/history';import OperationFilters from'../components/history/OperationFilters.vue';import OperationList from'../components/history/OperationList.vue';import OperationDetails from'../components/history/OperationDetails.vue';const s=useHistoryStore(),query=ref(''),status=ref('');const load=()=>s.load(query.value,status.value||null);onMounted(load)</script><template><section class="history"><header><div><h1>操作日志</h1><p>每次执行和撤回都会逐项记录，损坏记录不会影响其他历史。</p></div><OperationFilters v-model:query="query" v-model:status="status" @search="load"/></header><div class="history-grid"><OperationList :items="s.items" :loading="s.loading" @select="s.select"/><OperationDetails :operation="s.selected"/></div></section></template><style scoped>.history{height:100%;display:grid;grid-template-rows:auto 1fr;gap:16px}.history header{display:grid;grid-template-columns:1fr minmax(400px,55%);align-items:end;gap:20px}h1,p{margin:0}header p{margin-top:7px;color:var(--muted)}.history-grid{min-height:0;display:grid;grid-template-columns:minmax(280px,38%) minmax(0,62%);gap:14px}@media(max-width:850px){.history header,.history-grid{grid-template-columns:1fr}.history-grid{overflow:auto}}</style>
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { useHistoryStore } from '../stores/history'
+import OperationFilters from '../components/history/OperationFilters.vue'
+import OperationList from '../components/history/OperationList.vue'
+import OperationDetails from '../components/history/OperationDetails.vue'
+
+const store = useHistoryStore()
+const query = ref('')
+const status = ref('')
+const load = () => store.load(query.value, status.value || null)
+
+onMounted(load)
+</script>
+
+<template>
+  <section class="history">
+    <header>
+      <div>
+        <h1>操作日志</h1>
+        <p>查看每次文件名处理记录，并在同一页面完成安全检查与整批撤回。</p>
+      </div>
+      <OperationFilters
+        v-model:query="query"
+        v-model:status="status"
+        @search="load"
+      />
+    </header>
+    <el-alert
+      v-if="store.errorMessage"
+      type="error"
+      :title="store.errorMessage"
+      :closable="false"
+      show-icon
+    />
+    <div class="history-grid">
+      <OperationList
+        :items="store.items"
+        :loading="store.loading"
+        @select="store.select"
+      />
+      <OperationDetails
+        :operation="store.selected"
+        :undo-check="store.undoCheck"
+        :busy="store.selectionBusy || store.undoBusy"
+        :undo-error="store.undoError"
+        @undo="store.executeUndo"
+      />
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.history {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.history header {
+  display: grid;
+  grid-template-columns: 1fr minmax(400px, 55%);
+  align-items: end;
+  gap: 20px;
+}
+
+h1,
+p {
+  margin: 0;
+}
+
+header p {
+  margin-top: 7px;
+  color: var(--muted);
+}
+
+.history-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 34%) minmax(0, 66%);
+  flex: 1 1 auto;
+  gap: 14px;
+}
+
+@media (max-width: 850px) {
+  .history header,
+  .history-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .history-grid {
+    overflow: auto;
+  }
+}
+</style>
