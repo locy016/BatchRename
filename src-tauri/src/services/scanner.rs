@@ -60,8 +60,8 @@ pub fn search_matches(
     snapshot.items.sort_by(|left, right| {
         kind_rank(left.kind)
             .cmp(&kind_rank(right.kind))
+            .then_with(|| compare_parent_directories(&left.source, &right.source, &snapshot.root))
             .then_with(|| natural_compare(&file_name(&left.source), &file_name(&right.source)))
-            .then_with(|| left.source.parent().cmp(&right.source.parent()))
     });
     emit_progress(
         &DirectoryOverview {
@@ -188,6 +188,35 @@ fn file_name(path: &std::path::Path) -> String {
         .unwrap_or_default()
         .to_string_lossy()
         .into_owned()
+}
+
+fn compare_parent_directories(
+    left: &std::path::Path,
+    right: &std::path::Path,
+    root: &std::path::Path,
+) -> Ordering {
+    let left_parent = left.parent().unwrap_or(root);
+    let right_parent = right.parent().unwrap_or(root);
+    let left_relative = left_parent.strip_prefix(root).unwrap_or(left_parent);
+    let right_relative = right_parent.strip_prefix(root).unwrap_or(right_parent);
+    let depth_order = left_relative
+        .components()
+        .count()
+        .cmp(&right_relative.components().count());
+    if depth_order != Ordering::Equal {
+        return depth_order;
+    }
+
+    for (left_part, right_part) in left_relative.components().zip(right_relative.components()) {
+        let order = natural_compare(
+            &left_part.as_os_str().to_string_lossy(),
+            &right_part.as_os_str().to_string_lossy(),
+        );
+        if order != Ordering::Equal {
+            return order;
+        }
+    }
+    Ordering::Equal
 }
 
 fn natural_compare(left: &str, right: &str) -> Ordering {
