@@ -16,6 +16,8 @@ describe('重命名流程栏', () => {
     expect(wrapper.text()).not.toContain('完成预览后才会允许执行')
     expect(wrapper.text()).not.toContain('扫描范围')
     expect(wrapper.text()).not.toContain('使用正则表达式')
+    expect(wrapper.text()).not.toContain('文件名管理流程')
+    expect(wrapper.find('.workflow-head').exists()).toBe(false)
     expect(wrapper.text()).toContain('1　选择目录')
     expect(wrapper.text()).toContain('2　查找内容')
     expect(wrapper.text()).toContain('3　替换与预览')

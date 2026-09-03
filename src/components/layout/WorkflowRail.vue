@@ -8,7 +8,6 @@ const store = useRenameStore()
 
 <template>
   <aside class="workflow">
-    <div class="workflow-head"><span>文件名管理流程</span></div>
     <ol>
       <li>
         <label>1　选择目录</label>
@@ -66,17 +65,11 @@ const store = useRenameStore()
 .workflow {
   height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   padding: 18px;
   border-right: 1px solid var(--border);
   background: var(--surface);
   overflow: hidden;
-}
-
-.workflow-head {
-  margin-bottom: 14px;
-  font-size: 16px;
-  font-weight: 700;
 }
 
 ol {
