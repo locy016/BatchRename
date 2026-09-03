@@ -8,7 +8,7 @@ const store = useRenameStore()
   <footer class="stats">
     <template v-if="store.resultMode === 'directory'">
       <span>根目录内容：<b>{{ store.rootTotal }}</b> 项</span>
-      <span>当前显示：{{ Math.min(store.rootItems.length, store.previewLimit) }} 项</span>
+      <span>当前显示：{{ store.previewLimit === null ? store.rootItems.length : Math.min(store.rootItems.length, store.previewLimit) }} 项</span>
       <span>输入查找内容并扫描后，列表将切换为符合项</span>
     </template>
     <template v-else>

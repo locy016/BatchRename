@@ -34,7 +34,7 @@ describe('扫描与命名设置', () => {
     expect(wrapper.findComponent({ name: 'ElInputNumber' }).exists()).toBe(true)
   })
 
-  it('提供默认一百条的结果显示上限', () => {
+  it('结果显示支持任意正整数或全部且默认一百条', () => {
     const pinia = createPinia()
     const wrapper = mount(SettingsDrawer, {
       props: { modelValue: true },
@@ -44,8 +44,12 @@ describe('扫描与命名设置', () => {
       },
     })
     const store = useRenameStore(pinia)
+    const resultLimit = wrapper.findAllComponents({ name: 'ElInputNumber' })[0]
 
     expect(store.previewLimit).toBe(100)
     expect(wrapper.text()).toContain('结果显示')
+    expect(wrapper.text()).toContain('全部')
+    expect(resultLimit.props('min')).toBe(1)
+    expect(resultLimit.props('max')).toBeGreaterThan(100)
   })
 })

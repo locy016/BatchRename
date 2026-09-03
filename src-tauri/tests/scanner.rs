@@ -27,7 +27,7 @@ fn lists_only_root_items_with_kind_and_natural_order() {
     fs::write(root.path().join("文件10.txt"), "").unwrap();
     fs::write(root.path().join("目录2").join("深层文件.txt"), "").unwrap();
 
-    let listing = list_root_items(root.path(), 3).unwrap();
+    let listing = list_root_items(root.path(), Some(3)).unwrap();
     let names: Vec<_> = listing
         .items
         .iter()

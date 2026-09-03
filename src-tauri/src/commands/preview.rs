@@ -9,6 +9,7 @@ pub async fn build_rename_preview(
     job_id: String,
     replacement: String,
     rename_extension: bool,
+    limit: Option<usize>,
     manager: State<'_, JobManager>,
 ) -> Result<PreviewPage, String> {
     let manager = manager.inner().clone();
@@ -20,7 +21,8 @@ pub async fn build_rename_preview(
     })
     .await
     .map_err(|error| format!("结果预览任务异常结束：{error}"))??;
-    let page = preview_page(&preview, 0, 100);
+    let limit = limit.unwrap_or(preview.candidates.len()).max(1);
+    let page = preview_page(&preview, 0, limit);
     manager
         .save_preview(&job_id, preview)
         .map_err(|error| error.to_string())?;
@@ -31,11 +33,12 @@ pub async fn build_rename_preview(
 pub fn get_preview_page(
     job_id: String,
     offset: usize,
-    limit: usize,
+    limit: Option<usize>,
     manager: State<'_, JobManager>,
 ) -> Result<PreviewPage, String> {
     let preview = manager
         .preview(&job_id)
         .ok_or_else(|| "预览结果已经失效，请重新生成".to_owned())?;
+    let limit = limit.unwrap_or(preview.candidates.len()).max(1);
     Ok(preview_page(&preview, offset, limit))
 }

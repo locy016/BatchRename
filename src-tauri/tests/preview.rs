@@ -94,3 +94,16 @@ fn pagination_does_not_change_complete_summary() {
     assert_eq!(page.total, 120);
     assert_eq!(page.items.len(), 20);
 }
+
+#[test]
+fn result_page_has_no_fixed_maximum() {
+    let root = tempdir().unwrap();
+    let names: Vec<_> = (0..620).map(|index| format!("旧版{index}.txt")).collect();
+    let references: Vec<_> = names.iter().map(String::as_str).collect();
+    let result = build_preview(&snapshot(root.path(), "旧版", &references), "新版", false).unwrap();
+
+    let page = preview_page(&result, 0, 600);
+
+    assert_eq!(page.items.len(), 600);
+    assert_eq!(page.limit, 600);
+}

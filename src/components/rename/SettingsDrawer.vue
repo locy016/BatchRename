@@ -11,8 +11,12 @@ const depth = computed({
   set: (value: number | undefined) => store.setMaxDepth(value ?? 0),
 })
 const previewLimit = computed({
-  get: () => store.previewLimit,
+  get: () => store.previewLimit ?? 100,
   set: (value: number | undefined) => store.setPreviewLimit(value),
+})
+const showAllResults = computed({
+  get: () => store.previewLimit === null,
+  set: (value: boolean) => store.setPreviewLimit(value ? null : previewLimit.value),
 })
 </script>
 
@@ -50,9 +54,22 @@ const previewLimit = computed({
       <div class="section-title">
         <div>
           <h3>结果显示</h3>
-          <p>只控制表格显示条数；完整统计和最终执行范围不会改变。</p>
+          <p>可设置从 1 项到全部；只影响表格显示，不改变完整统计和最终执行范围。</p>
         </div>
-        <el-input-number v-model="previewLimit" :min="1" :max="100" controls-position="right" />
+        <div class="result-limit-control">
+          <el-input-number
+            v-model="previewLimit"
+            :min="1"
+            :disabled="showAllResults"
+            controls-position="right"
+          />
+          <el-switch
+            v-model="showAllResults"
+            inline-prompt
+            active-text="全部"
+            inactive-text="限量"
+          />
+        </div>
       </div>
     </section>
 
@@ -137,6 +154,12 @@ h3 {
 .choice-grid .el-checkbox {
   width: 100%;
   margin: 0;
+}
+
+.result-limit-control {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 .setting-note {

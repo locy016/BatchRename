@@ -14,6 +14,7 @@ use crate::state::job_manager::{CancellationToken, JobManager, JobType};
 pub async fn start_scan(
     options: MatchOptions,
     events: Channel<ScanProgress>,
+    limit: Option<usize>,
     manager: State<'_, JobManager>,
 ) -> Result<ScanResult, String> {
     let handle = manager
@@ -36,16 +37,17 @@ pub async fn start_scan(
         });
         match result {
             Ok(snapshot) => {
+                let limit = limit.unwrap_or(snapshot.items.len()).max(1);
                 let overview = DirectoryOverview {
                     directories: snapshot.scanned_directory_count,
                     files: snapshot.scanned_file_count,
                     warnings: snapshot.warnings.clone(),
                 };
                 let page = MatchPage {
-                    items: snapshot.items.iter().take(100).cloned().collect(),
+                    items: snapshot.items.iter().take(limit).cloned().collect(),
                     total: snapshot.items.len(),
                     offset: 0,
-                    limit: 100,
+                    limit,
                 };
                 let response = ScanResult {
                     job_id: task_identifier.clone(),
@@ -99,12 +101,37 @@ pub async fn inspect_directory(
 }
 
 #[tauri::command]
-pub async fn list_root_items(root: PathBuf, limit: usize) -> Result<MatchPage, String> {
+pub async fn list_root_items(root: PathBuf, limit: Option<usize>) -> Result<MatchPage, String> {
     tauri::async_runtime::spawn_blocking(move || {
         read_root_items(&root, limit).map_err(|error| error.to_string())
     })
     .await
     .map_err(|error| format!("目录内容读取异常结束：{error}"))?
+}
+
+#[tauri::command]
+pub fn get_scan_page(
+    job_id: String,
+    offset: usize,
+    limit: Option<usize>,
+    manager: State<'_, JobManager>,
+) -> Result<MatchPage, String> {
+    let snapshot = manager
+        .snapshot(&job_id)
+        .ok_or_else(|| "扫描结果已经失效，请重新扫描".to_owned())?;
+    let limit = limit.unwrap_or(snapshot.items.len()).max(1);
+    Ok(MatchPage {
+        items: snapshot
+            .items
+            .iter()
+            .skip(offset)
+            .take(limit)
+            .cloned()
+            .collect(),
+        total: snapshot.items.len(),
+        offset,
+        limit,
+    })
 }
 
 #[tauri::command]

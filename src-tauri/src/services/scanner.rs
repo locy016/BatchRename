@@ -8,7 +8,10 @@ use crate::domain::models::{
 use crate::domain::rules::RenameRule;
 use crate::state::job_manager::CancellationToken;
 
-pub fn list_root_items(root: &std::path::Path, limit: usize) -> Result<MatchPage, DomainError> {
+pub fn list_root_items(
+    root: &std::path::Path,
+    limit: Option<usize>,
+) -> Result<MatchPage, DomainError> {
     if !root.is_dir() {
         return Err(DomainError::InvalidRoot);
     }
@@ -34,6 +37,7 @@ pub fn list_root_items(root: &std::path::Path, limit: usize) -> Result<MatchPage
             .then_with(|| natural_compare(&file_name(&left.source), &file_name(&right.source)))
     });
     let total = items.len();
+    let limit = limit.unwrap_or(total).max(1);
     items.truncate(limit);
     Ok(MatchPage {
         items,

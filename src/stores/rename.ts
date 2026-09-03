@@ -39,6 +39,9 @@ const displayRootItems = (items: MatchedItem[]): DisplayItem[] => items.map((ite
   status: '目录项目',
   detail: '根目录中的项目；输入查找内容并扫描后可筛选符合项。',
 }))
+const limitItems = <T>(items: T[], limit: number | null): T[] => (
+  limit === null ? items : items.slice(0, limit)
+)
 
 export const useRenameStore = defineStore('rename', {
   state: () => ({
@@ -50,11 +53,12 @@ export const useRenameStore = defineStore('rename', {
     includeFiles: true,
     includeDirs: true,
     renameExtension: false,
-    previewLimit: 100,
+    previewLimit: 100 as number | null,
     scanJobId: null as string | null,
     scanGeneration: 0,
     overviewGeneration: 0,
     rootListingGeneration: 0,
+    resultLimitGeneration: 0,
     previewValid: false,
     resultMode: 'empty' as ResultMode,
     rootItems: [] as MatchedItem[],
@@ -95,7 +99,7 @@ export const useRenameStore = defineStore('rename', {
       this.previewItems = []
       if (this.rootItems.length || this.rootTotal > 0) {
         this.resultMode = 'directory'
-        this.items = displayRootItems(this.rootItems.slice(0, this.previewLimit))
+        this.items = displayRootItems(limitItems(this.rootItems, this.previewLimit))
       } else {
         this.resultMode = 'empty'
         this.items = []
@@ -107,25 +111,81 @@ export const useRenameStore = defineStore('rename', {
       this.previewValid = false
       this.previewItems = []
       if (this.scanJobId) {
-        this.items = displayMatches(this.matchedItems.slice(0, this.previewLimit))
+        this.items = displayMatches(limitItems(this.matchedItems, this.previewLimit))
         this.resultMode = 'matches'
       } else {
-        this.items = displayRootItems(this.rootItems.slice(0, this.previewLimit))
+        this.items = displayRootItems(limitItems(this.rootItems, this.previewLimit))
         this.resultMode = this.root ? 'directory' : 'empty'
       }
       this.summary = { ...emptySummary(), matched: this.matchedTotal }
     },
-    setPreviewLimit(value: number | undefined) {
+    async setPreviewLimit(value: number | null | undefined) {
       const candidate = typeof value === 'number' && Number.isFinite(value) ? value : 100
-      const normalized = Math.min(100, Math.max(1, Math.trunc(candidate)))
+      const normalized = value === null ? null : Math.max(1, Math.trunc(candidate))
       if (this.previewLimit === normalized) return
+      const generation = ++this.resultLimitGeneration
       this.previewLimit = normalized
       if (this.resultMode === 'directory') {
-        this.items = displayRootItems(this.rootItems.slice(0, normalized))
+        this.items = displayRootItems(limitItems(this.rootItems, normalized))
       } else if (this.resultMode === 'matches') {
-        this.items = displayMatches(this.matchedItems.slice(0, normalized))
+        this.items = displayMatches(limitItems(this.matchedItems, normalized))
       } else if (this.resultMode === 'preview') {
-        this.items = this.previewItems.slice(0, normalized)
+        this.items = limitItems(this.previewItems, normalized)
+      }
+
+      const requiredCount = (total: number) => Math.min(total, normalized ?? total)
+      try {
+        if (
+          this.resultMode === 'directory'
+          && this.root
+          && this.rootItems.length < requiredCount(this.rootTotal)
+        ) {
+          const root = this.root
+          const page = await desktopApi.listRootItems(root, normalized)
+          if (
+            generation !== this.resultLimitGeneration
+            || root !== this.root
+            || this.resultMode !== 'directory'
+          ) return
+          this.rootItems = page.items
+          this.rootTotal = page.total
+          this.items = displayRootItems(limitItems(page.items, normalized))
+        } else if (
+          this.resultMode === 'matches'
+          && this.scanJobId
+          && this.matchedItems.length < requiredCount(this.matchedTotal)
+        ) {
+          const jobId = this.scanJobId
+          const page = await desktopApi.getScanPage(jobId, 0, normalized)
+          if (
+            generation !== this.resultLimitGeneration
+            || jobId !== this.scanJobId
+            || this.resultMode !== 'matches'
+          ) return
+          this.matchedItems = page.items
+          this.matchedTotal = page.total
+          this.items = displayMatches(limitItems(page.items, normalized))
+        } else if (
+          this.resultMode === 'preview'
+          && this.scanJobId
+          && this.previewItems.length < requiredCount(this.summary.matched)
+        ) {
+          const jobId = this.scanJobId
+          const page = await desktopApi.getPreviewPage(jobId, 0, normalized)
+          if (
+            generation !== this.resultLimitGeneration
+            || jobId !== this.scanJobId
+            || this.resultMode !== 'preview'
+          ) return
+          this.previewItems = page.items
+          this.summary = page.summary
+          this.warnings = page.warnings
+          this.items = limitItems(page.items, normalized)
+        }
+      } catch (error) {
+        if (generation === this.resultLimitGeneration) {
+          this.errorMessage = error instanceof Error ? error.message : String(error)
+        }
       }
     },
     setRoot(value: string) {
@@ -182,11 +242,11 @@ export const useRenameStore = defineStore('rename', {
       const generation = ++this.rootListingGeneration
       const root = this.root
       try {
-        const page = await desktopApi.listRootItems(root, 100)
+        const page = await desktopApi.listRootItems(root, this.previewLimit)
         if (generation !== this.rootListingGeneration || root !== this.root) return
         this.rootItems = page.items
         this.rootTotal = page.total
-        this.items = displayRootItems(page.items.slice(0, this.previewLimit))
+        this.items = displayRootItems(limitItems(page.items, this.previewLimit))
         this.resultMode = 'directory'
       } catch (error) {
         if (generation === this.rootListingGeneration) {
@@ -228,7 +288,7 @@ export const useRenameStore = defineStore('rename', {
             files: event.scannedFileCount,
           }
           this.summary.matched = event.matchedTotal
-        })
+        }, this.previewLimit)
         if (generation !== this.scanGeneration) return
         this.scanJobId = result.jobId
         this.overview = {
@@ -237,7 +297,7 @@ export const useRenameStore = defineStore('rename', {
         }
         this.matchedItems = result.page.items
         this.matchedTotal = result.page.total
-        this.items = displayMatches(result.page.items.slice(0, this.previewLimit))
+        this.items = displayMatches(limitItems(result.page.items, this.previewLimit))
         this.resultMode = 'matches'
         this.summary = { ...emptySummary(), matched: result.page.total }
         this.warnings = result.warnings
@@ -261,9 +321,14 @@ export const useRenameStore = defineStore('rename', {
       this.busy = 'previewing'
       this.errorMessage = ''
       try {
-        const page = await desktopApi.buildPreview(this.scanJobId, this.replacement, this.renameExtension)
+        const page = await desktopApi.buildPreview(
+          this.scanJobId,
+          this.replacement,
+          this.renameExtension,
+          this.previewLimit,
+        )
         this.previewItems = page.items
-        this.items = page.items.slice(0, this.previewLimit)
+        this.items = limitItems(page.items, this.previewLimit)
         this.resultMode = 'preview'
         this.summary = page.summary
         this.warnings = page.warnings

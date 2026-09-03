@@ -77,6 +77,20 @@ describe('工作流状态', () => {
     ])
   })
 
+  it('目录列表允许按全部模式读取而不是固定一百条', async () => {
+    vi.spyOn(desktopApi, 'chooseDirectory').mockResolvedValue('D:/资料')
+    const listRootItems = vi.spyOn(desktopApi, 'listRootItems').mockResolvedValue({
+      items: [], total: 0, offset: 0, limit: 1,
+    })
+    vi.spyOn(desktopApi, 'inspectDirectory').mockResolvedValue({ directories: 0, files: 0 })
+    const store = useRenameStore()
+    store.setPreviewLimit(null)
+
+    await store.chooseRoot()
+
+    expect(listRootItems).toHaveBeenCalledWith('D:/资料', null)
+  })
+
   it('输入查找内容前保留根目录列表，扫描后切换为匹配结果', async () => {
     vi.spyOn(desktopApi, 'startScan').mockResolvedValue({
       jobId: 'scan-job',
@@ -135,6 +149,126 @@ describe('工作流状态', () => {
     store.setReplacement('新版')
     expect(store.items).toHaveLength(25)
     expect(store.summary.matched).toBe(150)
+  })
+
+  it('扫描与预览接口接收当前结果显示范围', async () => {
+    const startScan = vi.spyOn(desktopApi, 'startScan').mockResolvedValue({
+      jobId: 'scan-limit',
+      overview: { directories: 0, files: 0 },
+      page: { items: [], total: 0, offset: 0, limit: 250 },
+      warnings: [],
+    })
+    const buildPreview = vi.spyOn(desktopApi, 'buildPreview').mockResolvedValue({
+      items: [], total: 0, offset: 0, limit: 250,
+      summary: { matched: 0, ready: 0, unchanged: 0, conflicts: 0, invalid: 0 },
+      warnings: [],
+    })
+    const store = useRenameStore()
+    store.root = 'D:/资料'
+    store.search = '项目'
+    store.setPreviewLimit(250)
+
+    await store.scan()
+    await store.preview()
+
+    expect(startScan).toHaveBeenCalledWith(expect.any(Object), expect.any(Function), 250)
+    expect(buildPreview).toHaveBeenCalledWith('scan-limit', '', false, 250)
+  })
+
+  it('结果显示数量允许超过一百条', () => {
+    const store = useRenameStore()
+    store.resultMode = 'directory'
+    store.rootItems = Array.from({ length: 250 }, (_, index) => ({
+      source: `D:/资料/项目${index + 1}.txt`,
+      kind: '文件' as const,
+    }))
+    store.rootTotal = 250
+
+    store.setPreviewLimit(250)
+
+    expect(store.previewLimit).toBe(250)
+    expect(store.items).toHaveLength(250)
+  })
+
+  it('结果显示数量选择全部时不裁剪已有结果', () => {
+    const store = useRenameStore()
+    store.resultMode = 'matches'
+    store.matchedItems = Array.from({ length: 180 }, (_, index) => ({
+      source: `D:/资料/匹配${index + 1}.txt`,
+      kind: '文件' as const,
+    }))
+    store.matchedTotal = 180
+
+    store.setPreviewLimit(null)
+
+    expect(store.previewLimit).toBeNull()
+    expect(store.items).toHaveLength(180)
+  })
+
+  it('切换为全部时重新读取完整根目录列表', async () => {
+    const completeItems = Array.from({ length: 180 }, (_, index) => ({
+      source: `D:/资料/根目录项目${index + 1}.txt`,
+      kind: '文件' as const,
+    }))
+    const listRootItems = vi.spyOn(desktopApi, 'listRootItems').mockResolvedValue({
+      items: completeItems, total: 180, offset: 0, limit: 180,
+    })
+    const store = useRenameStore()
+    store.root = 'D:/资料'
+    store.resultMode = 'directory'
+    store.rootItems = completeItems.slice(0, 100)
+    store.rootTotal = 180
+
+    await store.setPreviewLimit(null)
+
+    expect(listRootItems).toHaveBeenCalledWith('D:/资料', null)
+    expect(store.items).toHaveLength(180)
+  })
+
+  it('扩大显示数量时从扫描快照补取匹配结果', async () => {
+    const completeItems = Array.from({ length: 180 }, (_, index) => ({
+      source: `D:/资料/匹配项目${index + 1}.txt`,
+      kind: '文件' as const,
+    }))
+    const getScanPage = vi.spyOn(desktopApi, 'getScanPage').mockResolvedValue({
+      items: completeItems, total: 180, offset: 0, limit: 180,
+    })
+    const store = useRenameStore()
+    store.scanJobId = 'scan-complete'
+    store.resultMode = 'matches'
+    store.matchedItems = completeItems.slice(0, 100)
+    store.matchedTotal = 180
+
+    await store.setPreviewLimit(180)
+
+    expect(getScanPage).toHaveBeenCalledWith('scan-complete', 0, 180)
+    expect(store.items).toHaveLength(180)
+  })
+
+  it('切换为全部时从预览快照补取完整结果', async () => {
+    const completeItems = Array.from({ length: 180 }, (_, index) => ({
+      source: `D:/资料/项目${index + 1}.txt`,
+      target: `D:/资料/新版项目${index + 1}.txt`,
+      kind: '文件' as const,
+      status: '可修改' as const,
+      detail: '可以安全修改',
+    }))
+    const getPreviewPage = vi.spyOn(desktopApi, 'getPreviewPage').mockResolvedValue({
+      items: completeItems, total: 180, offset: 0, limit: 180,
+      summary: { matched: 180, ready: 180, unchanged: 0, conflicts: 0, invalid: 0 },
+      warnings: [],
+    })
+    const store = useRenameStore()
+    store.scanJobId = 'preview-complete'
+    store.resultMode = 'preview'
+    store.previewValid = true
+    store.previewItems = completeItems.slice(0, 100)
+    store.summary = { matched: 180, ready: 180, unchanged: 0, conflicts: 0, invalid: 0 }
+
+    await store.setPreviewLimit(null)
+
+    expect(getPreviewPage).toHaveBeenCalledWith('preview-complete', 0, null)
+    expect(store.items).toHaveLength(180)
   })
 
   it('扫描结果为空时仍保持匹配结果语义', async () => {

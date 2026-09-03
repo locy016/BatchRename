@@ -8,8 +8,6 @@ use crate::domain::models::{
 use crate::domain::rules::RenameRule;
 use crate::domain::validation::validate_windows_name;
 
-const MAX_PAGE_SIZE: usize = 500;
-
 pub fn build_preview(
     snapshot: &MatchSnapshot,
     replacement: &str,
@@ -95,7 +93,7 @@ pub fn build_preview(
 }
 
 pub fn preview_page(result: &PreviewResult, offset: usize, limit: usize) -> PreviewPage {
-    let limit = limit.clamp(1, MAX_PAGE_SIZE);
+    let limit = limit.max(1);
     let items = result
         .candidates
         .iter()

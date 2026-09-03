@@ -115,11 +115,12 @@ export interface UndoCheck {
 export interface DesktopApi {
   chooseDirectory(): Promise<string | null>
   inspectDirectory(root: string, maxDepth: number | null): Promise<DirectoryOverview>
-  listRootItems(root: string, limit: number): Promise<MatchPage>
-  startScan(options: MatchOptions, onProgress: (event: ScanProgress) => void): Promise<ScanResult>
+  listRootItems(root: string, limit: number | null): Promise<MatchPage>
+  startScan(options: MatchOptions, onProgress: (event: ScanProgress) => void, limit: number | null): Promise<ScanResult>
+  getScanPage(jobId: string, offset: number, limit: number | null): Promise<MatchPage>
   cancelActiveJob(): Promise<void>
-  buildPreview(jobId: string, replacement: string, renameExtension: boolean): Promise<PreviewPage>
-  getPreviewPage(jobId: string, offset: number, limit: number): Promise<PreviewPage>
+  buildPreview(jobId: string, replacement: string, renameExtension: boolean, limit: number | null): Promise<PreviewPage>
+  getPreviewPage(jobId: string, offset: number, limit: number | null): Promise<PreviewPage>
   execute(jobId: string, options: object, onProgress: (event: ExecutionProgress) => void): Promise<ExecutionSummary>
   queryOperations(query: object): Promise<OperationPage>
   getOperation(identifier: string): Promise<OperationLogV1>
@@ -151,9 +152,10 @@ export const desktopApi: DesktopApi = {
   },
   inspectDirectory: (root, maxDepth) => desktopOnly('inspect_directory', { root, maxDepth }),
   listRootItems: (root, limit) => desktopOnly('list_root_items', { root, limit }),
-  startScan: (options, handler) => desktopOnly('start_scan', { options, events: events(handler) }),
+  startScan: (options, handler, limit) => desktopOnly('start_scan', { options, events: events(handler), limit }),
+  getScanPage: (jobId, offset, limit) => desktopOnly('get_scan_page', { jobId, offset, limit }),
   cancelActiveJob: () => desktopOnly('cancel_active_job'),
-  buildPreview: (jobId, replacement, renameExtension) => desktopOnly('build_rename_preview', { jobId, replacement, renameExtension }),
+  buildPreview: (jobId, replacement, renameExtension, limit) => desktopOnly('build_rename_preview', { jobId, replacement, renameExtension, limit }),
   getPreviewPage: (jobId, offset, limit) => desktopOnly('get_preview_page', { jobId, offset, limit }),
   execute: (jobId, options, handler) => desktopOnly('execute_rename', { jobId, options, events: events(handler) }),
   queryOperations: (query) => inDesktop() ? invoke('query_operations', { query }) : Promise.resolve({ items: [], total: 0 }),
